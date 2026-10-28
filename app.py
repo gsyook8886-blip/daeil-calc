@@ -20,7 +20,7 @@ def check_password():
 
 # 로그인이 안 되어 있으면 암호 입력창 표시
 if not st.session_state["authenticated"]:
-    st.markdown("<br><br>", unsafe_allow_value=True)
+    st.markdown("<br><br>", unsafe_allow_html=True)
     st.title("🔒 (주)대일물류 통합 화물 정산 시스템")
     st.subheader("직원 인증이 필요합니다.")
     
@@ -87,7 +87,7 @@ with col1:
     with c3: p_premium = st.number_input("성수기 할증 (%)", min_value=0, value=0, step=5)
     with c4: u_premium = st.number_input("긴급 할증 (%)", min_value=0, value=0, step=5)
     with c5: n_premium = st.number_input("야간 할증 (%)", min_value=0, value=0, step=5)
-    with w_premium := c6: w_premium_input = st.number_input("주말/공휴일 할증 (%)", min_value=0, value=0, step=5)
+    with c6: w_premium_input = st.number_input("주말/공휴일 할증 (%)", min_value=0, value=0, step=5)
     total_premium_rate = (p_premium + u_premium + n_premium + w_premium_input) / 100
 
     st.markdown("#### 4. 도착지 귀로 공차 보정")
@@ -113,7 +113,6 @@ with col1:
     st.markdown("#### 6. 주선 마진 설정")
     m_method = st.radio("마진 산정 방식", ["정률 마진 (%)", "정액 마진 (원)"], horizontal=True)
     if m_method == "정률 마진 (%)":
-        # 요청하신 기본 마진율 20% 기본값으로 고정 세팅
         margin_rate = st.number_input("목표 마진율 (%)", min_value=0.0, max_value=50.0, value=20.0, step=0.5)
     else:
         margin_flat = st.number_input("고정 마진 금액 (원)", min_value=0, value=30000, step=5000)
