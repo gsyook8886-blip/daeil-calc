@@ -39,7 +39,7 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진
+# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진 (오류 해결 완료)
 # ------------------------------------------------------------------
 def get_korea_live_weather(region_name):
     region_grid_map = {
@@ -89,11 +89,11 @@ def get_korea_live_weather(region_name):
                 pty_value = int(item.get("obsrValue", 0))
                 break
         
-        # [누락 수정 완동] 기상청 코드 대입: 1(비), 2(비/눈), 4(소나기)
-        if pty_value in:
-            return True, "官方 비 / 소나기 (강수 감지)", False
+        # [구문 에러 방지 해결] 직설적인 기상청 코드 대입: 1(비), 2(비/눈), 4(소나기)
+        if pty_value == 1 or pty_value == 2 or pty_value == 4:
+            return True, "🌧️ 비 / 소나기 (강수 감지)", False
         elif pty_value == 3:
-            return True, "官方 눈 / 진눈깨비 (강설 감지)", False
+            return True, "❄️ 눈 / 진눈깨비 (강설 감지)", False
         else:
             return False, "☀️ 맑음 / 흐림 (운송 양호)", False
     except:
