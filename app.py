@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import requests
 
 # 페이지 설정
 st.set_page_config(page_title="(주)대일물류 운임 계산기", layout="wide")
@@ -28,17 +29,83 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 # ------------------------------------------------------------------
-# 🔓 2단계: 메인 계산기 화면 구동 (★청구가 기반 로직으로 대수정★)
+# 🗺️ 2단계: PDF 명세 데이터 기반 하차지 공차 보정률 데이터베이스 (DB)
 # ------------------------------------------------------------------
-st.title("🚛 (주)대일물류 맞춤형 완전 자동화 운임 계산기")
-st.caption("제공해주신 엑셀 단가표(화주 청구가)를 기준으로 할증을 더하고, 마진을 제외하여 지급가를 산출합니다.")
+# 보내주신 PDF 분류 데이터를 텍스트 매칭용 딕셔너리로 완벽 정의
+destination_margin_rates = {
+    # --- 0% 보정 구역 ---
+    "서울": 0.00,
+    "인천": 0.00,
+    "경기 안산·시흥·화성·평택·용인·이천·안성": 0.00,
+    "부산": 0.00,
+    "울산": 0.00,
+    
+    # --- 3% 보정 구역 ---
+    "경기 남양주·파주·김포·광주·양주·포천": 0.03,
+    "충남 천안·아산·당진·서산": 0.03,
+    "충북 청주·진천·음성": 0.03,
+    "경북 구미·경산": 0.03,
+    "경남 창원·김해·양산": 0.03,
+    "전북 군산": 0.03,
+    
+    # --- 5% 보정 구역 ---
+    "강원 춘천·원주·강릉": 0.05,
+    "충남 공주·논산·보령": 0.05,
+    "충북 충주·제천": 0.05,
+    "전북 전주·익산·완주": 0.05,
+    "전남 목포·순천·광양·여수": 0.05,
+    "경북 안동·영주·상주": 0.05,
+    "경남 진주·통영·거제": 0.05,
+    
+    # --- 10% 보정 구역 ---
+    "강원 태백·정선·평창·인제·양구·화천·고성": 0.10,
+    "전남 완도·진도·신안": 0.10,
+    "경북 봉화·영양·청송·울진": 0.10
+}
 
-# [단가표 정확도 보정] 엑셀에 명시된 거리별 실제 화주 청구가 데이터 반영
+# ------------------------------------------------------------------
+# 🌤️ 3단계: 실시간 권역별 기상 상태 판단 함수
+# ------------------------------------------------------------------
+def get_live_weather(region_name):
+    # 날씨 파싱용 광역 위치 맵
+    region_coords = {
+        "수도권 (서울/경기/인천)": {"lat": 37.5665, "lon": 126.9780},
+        "충청권 (대전/세종/충남북)": {"lat": 36.3504, "lon": 127.3845},
+        "전라권 (광주/전남북)": {"lat": 35.1595, "lon": 126.8526},
+        "경북권 (대구/경북)": {"lat": 35.8714, "lon": 128.6014},
+        "경남권 (부산/울산/경남)": {"lat": 35.1796, "lon": 129.0756},
+        "강원권 (강원특별자치도)": {"lat": 37.8853, "lon": 127.7298}
+    }
+    # 공차 보정 구역 스트링에서 광역 키 매핑용 헬퍼
+    coord_key = "수도권 (서울/경기/인천)"
+    if "충남" in region_name or "충북" in region_name: coord_key = "충청권 (대전/세종/충남북)"
+    elif "전남" in region_name or "전북" in region_name: coord_key = "전라권 (광주/전남북)"
+    elif "경북" in region_name: coord_key = "경북권 (대구/경북)"
+    elif "경남" in region_name or "부산" in region_name or "울산" in region_name: coord_key = "경남권 (부산/울산/경남)"
+    elif "강원" in region_name: coord_key = "강원권 (강원특별자치도)"
+    
+    coords = region_coords[coord_key]
+    try:
+        url = f"https://open-meteo.com{coords['lat']}&longitude={coords['lon']}&current_weather=true"
+        response = requests.get(url, timeout=3).json()
+        weather_code = response.get("current_weather", {}).get("weathercode", 0)
+        if weather_code in:
+            return True, "🌧️ 비 / 소나기"
+        elif weather_code in:
+            return True, "❄️ 눈 / 진눈깨비"
+        else:
+            return False, "☀️ 맑음 / 흐림"
+    except:
+        return False, "🔍 날씨 조회 불가"
+
+# ------------------------------------------------------------------
+# 🔓 4단계: 메인 정산 계산기 구동
+# ------------------------------------------------------------------
+# 엑셀 화주 청구가 기본 베이스라인 산출 공식
 def get_base_shipper_fare(temp_type, truck_size, km):
     matched_km = int(round(km / 5.0) * 5)
     matched_km = max(10, min(500, matched_km))
     
-    # 톤수별 청구 단가 가중치 (엑셀 제안단가 테이블 기준 세부 튜닝)
     weight_dict = {
         "1톤": 1.0, "1.4톤": 1.14, "2.5톤": 1.46, "3.5톤": 1.66, 
         "3.5톤 광폭": 1.77, "5톤": 2.03, "5톤 플러스": 2.12, "5톤 장축": 2.29, 
@@ -46,7 +113,6 @@ def get_base_shipper_fare(temp_type, truck_size, km):
     }
     weight = weight_dict.get(truck_size, 1.0)
     
-    # 상온/냉장 기준 청구 베이스 단가 계산
     if matched_km <= 50:
         base = 45000 + (matched_km * 900)
     elif matched_km <= 100:
@@ -60,7 +126,6 @@ def get_base_shipper_fare(temp_type, truck_size, km):
     final_fare = int(base * weight)
     return int(round(final_fare / 1000) * 1000)
 
-# 화면 레이아웃 구성
 col1, col2 = st.columns([1.2, 1])
 
 with col1:
@@ -77,29 +142,52 @@ with col1:
     st.markdown("#### 2. 운송 거리 설정")
     input_distance = st.number_input("운송 거리 입력 (km)", min_value=10, max_value=500, value=50, step=5)
     
-    # 기본 청구가 자동 연동
     base_shipper_fare = get_base_shipper_fare(temp_type, selected_truck, input_distance)
-    st.info(f"🎯 단가표(청구가) 연동 완료: [{temp_type} - {selected_truck}] {input_distance}km 기준 기본 청구가 = **{base_shipper_fare:,.0f} 원**")
+    st.info(f"🎯 단가표 연동 완료: 기본 청구가 = **{base_shipper_fare:,.0f} 원**")
 
-    st.markdown("#### 3. 운송조건 할증 (%)")
-    c3, c4, c5, c6 = st.columns(4)
+    # 🗺️ [완전 자동화] 상차지 및 하차 세부 세팅 구역
+    st.markdown("#### 🗺️ 상·하차지 설정 및 공차 보정율 자동 매칭")
+    c_loc1, c_loc2 = st.columns(2)
+    with c_loc1:
+        # 날씨 파싱을 위한 광역 상차 권역 설정
+        start_region_major = st.selectbox(
+            "상차지 권역 선택",
+            ["수도권 (서울/경기/인천)", "충청권 (대전/세종/충남북)", "전라권 (광주/전남북)", "경북권 (대구/경북)", "경남권 (부산/울산/경남)", "강원권 (강원특별자치도)"],
+            index=0
+        )
+    with c_loc2:
+        # PDF 데이터를 그대로 드롭다운 메뉴화
+        end_region_detail = st.selectbox(
+            "하차 지역 선택 (PDF 기준 자동 분류)",
+            list(destination_margin_rates.keys()),
+            index=0
+        )
+        
+    # PDF 기반 공차 보정률 딕셔너리에서 즉시 자동 연동
+    return_rate = destination_margin_rates[end_region_detail]
+    st.success(f"📊 **[공차보정 자동 연동]** {end_region_detail} 지역 ➡️ **귀로 공차 보정률: {return_rate*100:.0f}%** 적용")
+
+    # 🌧️ 실시간 날씨 데이터 가동 구역
+    st.markdown("#### 🌦️ 실시간 날씨 현황 중계")
+    start_has_rain, start_weather_text = get_live_weather(start_region_major)
+    end_has_rain, end_weather_text = get_live_weather(end_region_detail)
+    
+    st.markdown(f"📍 **상차지 날씨:** {start_weather_text} | 📍 **하차지 날씨:** {end_weather_text}")
+    
+    if start_has_rain or end_has_rain:
+        weather_premium_rate = 20
+        st.warning("⛈️ 상·하차지 중 악천후 지역 감지 ➡️ **날씨 할증(+20%)** 자동 가산")
+    else:
+        weather_premium_rate = 0
+        st.success("☀️ 상·하차지 기상 양호 (날씨 할증 없음)")
+
+    st.markdown("#### 3. 기타 수동 할증 (%)")
+    c3, c4, c5 = st.columns(3)
     with c3: p_premium = st.number_input("성수기 할증 (%)", min_value=0, value=0, step=5)
     with c4: u_premium = st.number_input("긴급 할증 (%)", min_value=0, value=0, step=5)
     with c5: n_premium = st.number_input("야간 할증 (%)", min_value=0, value=0, step=5)
-    with c6: w_premium_input = st.number_input("주말/공휴일 할증 (%)", min_value=0, value=0, step=5)
-    total_premium_rate = (p_premium + u_premium + n_premium + w_premium_input) / 100
-
-    st.markdown("#### 4. 도착지 귀로 공차 보정")
-    return_type = st.selectbox(
-        "도착 권역의 귀로 물량 수준",
-        ["귀로 물량이 많은 지역 (0% ~ +3% 보정)", "귀로 물량이 보통인 지역 (+5% 보정)", "귀로 물량이 적은 지역 (+10% 보정)"]
-    )
-    if "많은 지역" in return_type:
-        return_rate = st.slider("세부 보정률 선택 (%)", min_value=0, max_value=3, value=0) / 100
-    elif "보통인 지역" in return_type:
-        return_rate = 0.05
-    else:
-        return_rate = 0.10
+    
+    total_premium_rate = (p_premium + u_premium + n_premium + weather_premium_rate) / 100
 
     st.markdown("#### 5. 발생 실비 요금 (원)")
     c7, c8, c9, c10 = st.columns(4)
@@ -120,14 +208,11 @@ with col2:
     st.subheader("💰 최종 인수/청구 운임 산출")
     st.write("---")
     
-    # 1. 화주 최종 청구가 산출 (기본 청구가 + 할증액 + 보정액 + 실비)
     shipper_premium = base_shipper_fare * total_premium_rate
     shipper_return = base_shipper_fare * return_rate
     final_shipper_fee = base_shipper_fare + shipper_premium + shipper_return + actual_expenses
     
-    # 2. 차주 지급가 역산 및 주선 마진 확정
     if m_method == "정률 마진 (%)":
-        # 최종 청구액에서 마진을 제외한 금액을 기사에게 지급
         final_driver_fee = final_shipper_fee * (1 - (margin_rate / 100))
         company_margin = final_shipper_fee - final_driver_fee
         final_margin_percent = margin_rate
@@ -141,10 +226,9 @@ with col2:
     st.write("---")
     st.success(f"📈 대일물류 확보 마진 (수익): **{int(round(company_margin)):,.0f} 원** (정산 마진율: {final_margin_percent:.1f}%)")
     
-    # 상세 내역표
     st.markdown("##### 🔍 상세 운임 산정 항목")
     details_df = pd.DataFrame({
-        "산정 항목": ["기본 청구가(단가표 연동)", "운송조건 할증액", "귀로 공차보정액", "실비 합계", "최종 화주청구액", "최종 차주지급가(원가)"],
+        "산정 항목": ["기본 청구가(단가표 연동)", "조건/날씨 할증 합계액", "귀로 공차보정액", "실비 합계", "최종 화주청구액", "최종 차주지급가(원가)"],
         "산출 금액": [
             f"{base_shipper_fare:,.0f} 원",
             f"{shipper_premium:,.0f} 원",
