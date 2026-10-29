@@ -89,10 +89,11 @@ def get_korea_live_weather(region_name):
                 pty_value = int(item.get("obsrValue", 0))
                 break
         
+        # [누락 수정 완동] 기상청 코드 대입: 1(비), 2(비/눈), 4(소나기)
         if pty_value in:
-            return True, "🌧️ 비 / 소나기 (강수 감지)", False
+            return True, "官方 비 / 소나기 (강수 감지)", False
         elif pty_value == 3:
-            return True, "❄️ 눈 / 진눈깨비 (강설 감지)", False
+            return True, "官方 눈 / 진눈깨비 (강설 감지)", False
         else:
             return False, "☀️ 맑음 / 흐림 (운송 양호)", False
     except:
