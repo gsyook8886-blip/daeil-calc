@@ -31,24 +31,18 @@ if not st.session_state["authenticated"]:
 # ------------------------------------------------------------------
 # 🗺️ 2단계: PDF 명세 데이터 기반 하차지 공차 보정률 데이터베이스 (DB)
 # ------------------------------------------------------------------
-# 보내주신 PDF 분류 데이터를 텍스트 매칭용 딕셔너리로 완벽 정의
 destination_margin_rates = {
-    # --- 0% 보정 구역 ---
     "서울": 0.00,
     "인천": 0.00,
     "경기 안산·시흥·화성·평택·용인·이천·안성": 0.00,
     "부산": 0.00,
     "울산": 0.00,
-    
-    # --- 3% 보정 구역 ---
     "경기 남양주·파주·김포·광주·양주·포천": 0.03,
     "충남 천안·아산·당진·서산": 0.03,
     "충북 청주·진천·음성": 0.03,
     "경북 구미·경산": 0.03,
     "경남 창원·김해·양산": 0.03,
     "전북 군산": 0.03,
-    
-    # --- 5% 보정 구역 ---
     "강원 춘천·원주·강릉": 0.05,
     "충남 공주·논산·보령": 0.05,
     "충북 충주·제천": 0.05,
@@ -56,18 +50,15 @@ destination_margin_rates = {
     "전남 목포·순천·광양·여수": 0.05,
     "경북 안동·영주·상주": 0.05,
     "경남 진주·통영·거제": 0.05,
-    
-    # --- 10% 보정 구역 ---
     "강원 태백·정선·평창·인제·양구·화천·고성": 0.10,
     "전남 완도·진도·신안": 0.10,
     "경북 봉화·영양·청송·울진": 0.10
 }
 
 # ------------------------------------------------------------------
-# 🌤️ 3단계: 실시간 권역별 기상 상태 판단 함수
+# 🌤️ 3단계: 실시간 권역별 기상 상태 판단 함수 (기상 코드 정밀 수정)
 # ------------------------------------------------------------------
 def get_live_weather(region_name):
-    # 날씨 파싱용 광역 위치 맵
     region_coords = {
         "수도권 (서울/경기/인천)": {"lat": 37.5665, "lon": 126.9780},
         "충청권 (대전/세종/충남북)": {"lat": 36.3504, "lon": 127.3845},
@@ -76,7 +67,8 @@ def get_live_weather(region_name):
         "경남권 (부산/울산/경남)": {"lat": 35.1796, "lon": 129.0756},
         "강원권 (강원특별자치도)": {"lat": 37.8853, "lon": 127.7298}
     }
-    # 공차 보정 구역 스트링에서 광역 키 매핑용 헬퍼
+    
+    # 광역 권역 매핑 규칙 안전하게 선언
     coord_key = "수도권 (서울/경기/인천)"
     if "충남" in region_name or "충북" in region_name: coord_key = "충청권 (대전/세종/충남북)"
     elif "전남" in region_name or "전북" in region_name: coord_key = "전라권 (광주/전남북)"
@@ -89,19 +81,23 @@ def get_live_weather(region_name):
         url = f"https://open-meteo.com{coords['lat']}&longitude={coords['lon']}&current_weather=true"
         response = requests.get(url, timeout=3).json()
         weather_code = response.get("current_weather", {}).get("weathercode", 0)
-        if weather_code in:
-            return True, "🌧️ 비 / 소나기"
-        elif weather_code in:
-            return True, "❄️ 눈 / 진눈깨비"
+        
+        # 세계기상기구(WMO) 강수 및 강설 코드 목록 완벽 대입
+        rain_codes = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99]
+        snow_codes = [71, 73, 75, 77, 85, 86]
+        
+        if weather_code in rain_codes:
+            return True, "🌧️ 비 / 소나기 (강수 감지)"
+        elif weather_code in snow_codes:
+            return True, "❄️ 눈 / 진눈깨비 (강설 감지)"
         else:
-            return False, "☀️ 맑음 / 흐림"
+            return False, "☀️ 맑음 / 흐림 (강수 없음)"
     except:
-        return False, "🔍 날씨 조회 불가"
+        return False, "🔍 날씨 데이터 조회 불가"
 
 # ------------------------------------------------------------------
 # 🔓 4단계: 메인 정산 계산기 구동
 # ------------------------------------------------------------------
-# 엑셀 화주 청구가 기본 베이스라인 산출 공식
 def get_base_shipper_fare(temp_type, truck_size, km):
     matched_km = int(round(km / 5.0) * 5)
     matched_km = max(10, min(500, matched_km))
@@ -145,29 +141,24 @@ with col1:
     base_shipper_fare = get_base_shipper_fare(temp_type, selected_truck, input_distance)
     st.info(f"🎯 단가표 연동 완료: 기본 청구가 = **{base_shipper_fare:,.0f} 원**")
 
-    # 🗺️ [완전 자동화] 상차지 및 하차 세부 세팅 구역
     st.markdown("#### 🗺️ 상·하차지 설정 및 공차 보정율 자동 매칭")
     c_loc1, c_loc2 = st.columns(2)
     with c_loc1:
-        # 날씨 파싱을 위한 광역 상차 권역 설정
         start_region_major = st.selectbox(
             "상차지 권역 선택",
             ["수도권 (서울/경기/인천)", "충청권 (대전/세종/충남북)", "전라권 (광주/전남북)", "경북권 (대구/경북)", "경남권 (부산/울산/경남)", "강원권 (강원특별자치도)"],
             index=0
         )
     with c_loc2:
-        # PDF 데이터를 그대로 드롭다운 메뉴화
         end_region_detail = st.selectbox(
             "하차 지역 선택 (PDF 기준 자동 분류)",
             list(destination_margin_rates.keys()),
             index=0
         )
         
-    # PDF 기반 공차 보정률 딕셔너리에서 즉시 자동 연동
     return_rate = destination_margin_rates[end_region_detail]
     st.success(f"📊 **[공차보정 자동 연동]** {end_region_detail} 지역 ➡️ **귀로 공차 보정률: {return_rate*100:.0f}%** 적용")
 
-    # 🌧️ 실시간 날씨 데이터 가동 구역
     st.markdown("#### 🌦️ 실시간 날씨 현황 중계")
     start_has_rain, start_weather_text = get_live_weather(start_region_major)
     end_has_rain, end_weather_text = get_live_weather(end_region_detail)
