@@ -39,10 +39,9 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진 (오류 철저 방어)
+# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진 (오류 수정본)
 # ------------------------------------------------------------------
 def get_korea_live_weather(region_name):
-    # 기상청 격자 좌표 정의 테이블 (오류 원천 방지용 완전 매칭 구조)
     region_grid_map = {
         "수도권 (서울/경기/인천)": {"nx": 60, "ny": 127},
         "충청권 (대전/세종/충남북)": {"nx": 67, "ny": 100},
@@ -52,7 +51,6 @@ def get_korea_live_weather(region_name):
         "강원권 (강원특별자치도)": {"nx": 73, "ny": 134}
     }
     
-    # 텍스트 판별 및 매핑 안전장치
     grid_key = "수도권 (서울/경기/인천)"
     if "충남" in region_name or "충북" in region_name or "충청" in region_name: 
         grid_key = "충청권 (대전/세종/충남북)"
@@ -64,11 +62,7 @@ def get_korea_live_weather(region_name):
         grid_key = "경남권 (부산/울산/경남)"
     elif "강원" in region_name: 
         grid_key = "강원권 (강원특별자치도)"
-    else:
-        # 매칭 실패 시 에러 대신 기본값 분기 처리하여 튕김 현상 방지
-        grid_key = "수도권 (서울/경기/인천)"
 
-    # 안전하게 딕셔너리 값 추출 (.get 활용으로 TypeError 예방)
     grid = region_grid_map.get(grid_key, {"nx": 60, "ny": 127})
     
     try:
@@ -76,7 +70,6 @@ def get_korea_live_weather(region_name):
         now = datetime.now()
         base_date = now.strftime("%Y%m%d")
         
-        # 기상청 데이터 생성 주기 마진 타임 반영 계산
         if now.minute < 45:
             base_time = f"{now.hour - 1:02d}00" if now.hour > 0 else "2300"
             if now.hour == 0:
@@ -85,7 +78,6 @@ def get_korea_live_weather(region_name):
         else:
             base_time = f"{now.hour:02d}00"
 
-        # 공식 API 파싱 구동
         url = f"http://data.go.kr{base_date}&base_time={base_time}&nx={grid['nx']}&ny={grid['ny']}"
         
         response = requests.get(url, timeout=3).json()
@@ -97,11 +89,11 @@ def get_korea_live_weather(region_name):
                 pty_value = int(item.get("obsrValue", 0))
                 break
         
-        # PTY: 1(비), 2(비/눈), 4(소나기)
-        if pty_value in:
-            return True, "官方 비 / 소나기 (강수 감지)", False
+        # PTY값 판별 (1: 비, 2: 비/눈, 3: 눈, 4: 소나기)
+        if pty_value == 1 or pty_value == 2 or pty_value == 4:
+            return True, "🌧️ 비 / 소나기 (강수 감지)", False
         elif pty_value == 3:
-            return True, "官方 눈 / 진눈깨비 (강설 감지)", False
+            return True, "❄️ 눈 / 진눈깨비 (강설 감지)", False
         else:
             return False, "☀️ 맑음 / 흐림 (운송 양호)", False
     except:
@@ -172,7 +164,6 @@ with col1:
     st.success(f"📊 **[공차보정 자동 연동]** {end_region_detail} 지역 ➡️ **귀로 공차 보정률: {return_rate*100:.0f}%** 적용")
 
     st.markdown("#### 🌦️ 실시간 날씨 현황 중계")
-    # 정밀 수정된 안심 공공기상망 엔진 구동
     start_has_rain, start_weather_text, start_error = get_korea_live_weather(start_region_major)
     end_has_rain, end_weather_text, end_error = get_korea_live_weather(end_region_detail)
     
@@ -234,3 +225,7 @@ with col2:
 
     st.metric(label="💵 화주 최종 청구 금액 (최종 청구가)", value=f"{int(round(final_shipper_fee)):,.0f} 원")
     st.metric(label="🚛 차주 배차 지급 금액 (최종 지급가)", value=f"{int(round(final_driver_fee)):,.0f} 원")
+    st.write("---")
+    st.success(f"📈 대일물류 확보 마진 (수익): **{int(round(company_margin)):,.0f} 원** (정산 마진율: {final_margin_percent:.1f}%)")
+    
+    details_df = pd.DataFrame({
