@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 
 # 페이지 설정 및 테마 정립
 st.set_page_config(page_title="(주)대일물류 통합 화물 정산 시스템", layout="wide")
@@ -23,7 +22,7 @@ if not st.session_state["authenticated"]:
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔒 (주)대일물류 통합 화물 정산 시스템</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #6B7280;'>본 시스템은 인증된 임직원만 접근 가능합니다.</p>", unsafe_allow_html=True)
     
-    col_l, col_m, col_r = st.columns([1, 1, 1])
+    col_l, col_m, col_r = st.columns([1, 2, 1])
     with col_m:
         st.text_input("접속 비밀번호 입력", type="password", key="password_input", on_change=check_password)
         if st.session_state.get("password_error"):
@@ -159,7 +158,7 @@ with col1:
 with col2:
     st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>💰 최종 운임 산출 결과</h3>", unsafe_allow_html=True)
     
-    # 📌 회주 청구금 정산 및 기사 원가 역산
+    # 📌 화주 청구금 정산 및 기사 원가 역산
     shipper_premium = base_shipper_fare * total_premium_rate
     shipper_return = base_shipper_fare * return_rate
     final_shipper_fee = base_shipper_fare + shipper_premium + shipper_return + actual_expenses
@@ -183,26 +182,16 @@ with col2:
         <p style='margin: 0; font-size: 14px; color: #475569; font-weight: bold;'>🚛 차주 배차 지급 금액 (최종 지급가)</p>
         <h2 style='margin: 5px 0 0 0; color: #475569; font-size: 28px;'>{int(round(final_driver_fee)):,.0f} <span style='font-size: 16px;'>원</span></h2>
     </div>
-    <div style='background-color: #ECFDF5; padding: 15px; border: 1px solid #A7F3D0; border-radius: 8px; margin-bottom: 20px; text-align: center;'>
+    <div style='background-color: #ECFDF5; padding: 15px; border: 1px solid #A7F3D0; border-radius: 8px; margin-bottom: 25px; text-align: center;'>
         <span style='font-size: 15px; color: #065F46; font-weight: bold;'>📈 대일물류 주선 수익 마진 : </span>
         <span style='font-size: 20px; color: #047857; font-weight: bold;'>{int(round(company_margin)):,.0f} 원</span>
         <span style='font-size: 14px; color: #065F46;'> ({final_margin_percent:.1f}%)</span>
     </div>
     """, unsafe_allow_html=True)
     
-    # 🔍 세련된 격자리포트 테이블 파싱 구역
-    st.markdown("<h5 style='color: #475569; margin-bottom: 10px;'>🔍 상세 운임 산정 정산표</h5>", unsafe_allow_html=True)
-    
-    report_data = {
-        "정산 항목": ["1. 기본 청구가 (단가표 연동)", "2. 조건 및 날씨 할증액", "3. 도착지 귀로 공차보정액", "4. 발생 실비 및 기타 요금", "5. 최종 화주 청구 총액", "6. 최종 차주 지급 총액 (원가)"],
-        "금액": [
-            f"{base_shipper_fare:,.0f} 원",
-            f"{shipper_premium:,.0f} 원",
-            f"{shipper_return:,.0f} 원",
-            f"{actual_expenses:,.0f} 원",
-            f"{final_shipper_fee:,.0f} 원",
-            f"{final_driver_fee:,.0f} 원"
-        ]
-    }
-    df_report = pd.DataFrame(report_data)
-    # 인덱스 번호를 없애고 ERP 표처럼 출력
+    # 🔍 [구조 결함 완벽 해결] 에러 유발 함수를 제거하고 고가독성 명세서 폼으로 상시 노출
+    st.markdown("<h5 style='color: #1E3A8A; margin-bottom: 12px; font-weight: bold;'>📋 상세 운임 산정 정산표 (영수증)</h5>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style='background-color: #FFFFFF; padding: 15px; border: 1px dashed #1E3A8A; border-radius: 6px; font-family: monospace;'>
+        <div style='display: flex; justify-content: space-between; margin-bottom: 8px;'><span>1. 기본 청구가 (단가표 연동)</span><b>{base_shipper_fare:,.0f} 원</b></div>
+        <div style='display: flex; justify-content: space-between; margin-bottom: 8px;'><span>2. 조건 및 날씨 할증액 합계</span><b>{shipper_premium:,.0f} 원</b></div>
