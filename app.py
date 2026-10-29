@@ -39,7 +39,7 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진 (오류 수정본)
+# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진
 # ------------------------------------------------------------------
 def get_korea_live_weather(region_name):
     region_grid_map = {
@@ -89,7 +89,6 @@ def get_korea_live_weather(region_name):
                 pty_value = int(item.get("obsrValue", 0))
                 break
         
-        # PTY값 판별 (1: 비, 2: 비/눈, 3: 눈, 4: 소나기)
         if pty_value == 1 or pty_value == 2 or pty_value == 4:
             return True, "🌧️ 비 / 소나기 (강수 감지)", False
         elif pty_value == 3:
@@ -228,4 +227,5 @@ with col2:
     st.write("---")
     st.success(f"📈 대일물류 확보 마진 (수익): **{int(round(company_margin)):,.0f} 원** (정산 마진율: {final_margin_percent:.1f}%)")
     
+    st.markdown("##### 🔍 상세 운임 산정 항목")
     details_df = pd.DataFrame({
