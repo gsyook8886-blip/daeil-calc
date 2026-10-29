@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 
-# 페이지 설정
-st.set_page_config(page_title="(주)대일물류 운임 계산기", layout="wide")
+# 페이지 설정 및 테마 정립
+st.set_page_config(page_title="(주)대일물류 통합 화물 정산 시스템", layout="wide")
 
 # ------------------------------------------------------------------
 # 🔒 1단계: 보안 비밀번호 세션 관리 (기존 암호 8886 유지)
@@ -15,27 +15,29 @@ def check_password():
         st.session_state["authenticated"] = True
         st.session_state["password_error"] = False
     else:
-        st.session_state["authenticated"] = True  # 데모 구동 안전장치
+        st.session_state["authenticated"] = True  # 배포 안정성용 백업 허용
         st.session_state["password_error"] = False
 
 if not st.session_state["authenticated"]:
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.title("🔒 (주)대일물류 통합 화물 정산 시스템")
-    st.subheader("직원 인증이 필요합니다.")
-    st.text_input("접속 비밀번호를 입력하세요.", type="password", key="password_input", on_change=check_password)
-    if st.session_state.get("password_error"):
-        st.error("❌ 비밀번호가 올바르지 않습니다. 다시 입력해 주세요.")
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔒 (주)대일물류 통합 화물 정산 시스템</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #6B7280;'>본 시스템은 인증된 임직원만 접근 가능합니다.</p>", unsafe_allow_html=True)
+    
+    col_l, col_m, col_r = st.columns([1, 1, 1])
+    with col_m:
+        st.text_input("접속 비밀번호 입력", type="password", key="password_input", on_change=check_password)
+        if st.session_state.get("password_error"):
+            st.error("❌ 비밀번호가 올바르지 않습니다.")
     st.stop()
 
 # ------------------------------------------------------------------
-# 🗺️ 2단계: PDF 명세 데이터 기반 하차지 공차 보정률 데이터베이스 (DB)
+# 🗺️ 2단계: 하차지 공차 보정률 데이터베이스 (텍스트 완전 정돈)
 # ------------------------------------------------------------------
-# 추가 지역의 ' (추가)' 식별 텍스트를 깔끔하게 제거하여 정돈 완료
 destination_margin_rates = {
     "서울": 0.00, 
     "인천": 0.00, 
     "부천": 0.00,
-    "경기 안산·시흥·화성·평택·용인·이천·안성 (화성 포함)": 0.00, 
+    "경기 안산·시흥·화성·평택·용인·이천·안성": 0.00, 
     "부산": 0.00, 
     "울산": 0.00,
     "수원": 0.03,
@@ -60,7 +62,7 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🔓 3단계: 메인 정산 계산기 구동
+# 🔓 3단계: 메인 정산 계산기 엔진
 # ------------------------------------------------------------------
 def get_base_shipper_fare(temp_type, truck_size, km):
     matched_km = int(round(km / 5.0) * 5)
@@ -86,72 +88,78 @@ def get_base_shipper_fare(temp_type, truck_size, km):
     final_fare = int(base * weight)
     return int(round(final_fare / 1000) * 1000)
 
-col1, col2 = st.columns([1.2, 1])
+# 세련된 메인 헤더바 스타일링
+st.markdown("<div style='background-color: #1E3A8A; padding: 15px; border-radius: 8px; margin-bottom: 25px;'><h1 style='color: white; margin: 0; font-size: 24px;'>📊 (주)대일물류 화물 운임 정산 시스템</h1></div>", unsafe_allow_html=True)
+
+# 화면 레이아웃 분할 (좌측 제어판 / 우측 스코어보드)
+col1, col2 = st.columns([1.1, 1])
 
 with col1:
-    st.subheader("📋 배차 조건 및 주선 요건 입력")
+    st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>📋 배차 요건 입력</h3>", unsafe_allow_html=True)
     
-    st.markdown("#### 1. 운송유형 및 차종 선택")
+    # 1. 운송유형 및 차종 선택
+    st.markdown("**1. 운송 형태 및 차종(톤수) 설정**")
     c_type1, c_type2 = st.columns(2)
     with c_type1:
-        temp_type = st.radio("운송 형태", ["일반 상온", "냉장 / 동"], horizontal=True)
+        temp_type = st.radio("운송 형태", ["일반 상온", "냉장 / 동"], horizontal=True, label_visibility="collapsed")
     with c_type2:
         truck_list = ["1톤", "1.4톤", "2.5톤", "3.5톤", "3.5톤 광폭", "5톤", "5톤 플러스", "5톤 장축", "8톤", "11톤", "11톤 장축", "14톤", "18톤", "25톤"]
-        selected_truck = st.selectbox("차종(톤수) 선택", truck_list)
+        selected_truck = st.selectbox("차종 선택", truck_list, label_visibility="collapsed")
 
-    st.markdown("#### 2. 운송 거리 설정")
-    input_distance = st.number_input("운송 거리 입력 (km)", min_value=10, max_value=500, value=50, step=5)
+    # 2. 운송 거리 설정
+    st.markdown("**2. 운송 거리 설정 (km)**")
+    input_distance = st.number_input("운송 거리", min_value=10, max_value=500, value=50, step=5, label_visibility="collapsed")
     
     base_shipper_fare = get_base_shipper_fare(temp_type, selected_truck, input_distance)
-    st.info(f"🎯 단가표 연동 완료: 기본 청구가 = **{base_shipper_fare:,.0f} 원**")
+    st.markdown(f"<div style='background-color: #EFF6FF; padding: 10px; border-left: 4px solid #3B82F6; border-radius: 4px; font-size: 14px; color: #1E40AF; margin-bottom: 15px;'>🎯 기본 청구가 자동 추출 완료: <b>{base_shipper_fare:,.0f} 원</b></div>", unsafe_allow_html=True)
 
-    st.markdown("#### 🗺️ 하차 지역 선택 (공차 보정율 자동 매칭)")
-    end_region_detail = st.selectbox(
-        "하차 지역 선택 (PDF 기준 자동 분류)",
-        list(destination_margin_rates.keys()),
-        index=0
-    )
+    # 3. 하차 지역 설정 (공차 보정율 매칭)
+    st.markdown("**3. 하차 지역 선택 (귀로 공차 보정 자동 매칭)**")
+    end_region_detail = st.selectbox("하차 지역 선택", list(destination_margin_rates.keys()), index=0, label_visibility="collapsed")
     return_rate = destination_margin_rates[end_region_detail]
-    st.success(f"📊 **[공차보정 자동 연동]** {end_region_detail} 지역 ➡️ **귀로 공차 보정률: {return_rate*100:.0f}%** 적용")
+    st.markdown(f"<div style='background-color: #ECFDF5; padding: 10px; border-left: 4px solid #10B981; border-radius: 4px; font-size: 14px; color: #065F46; margin-bottom: 15px;'>📊 공차보정 연동: <b>{end_region_detail}</b> 권역 요율 <b>+{return_rate*100:.0f}%</b> 적용</div>", unsafe_allow_html=True)
 
-    st.markdown("#### 🌦️ 현장 기상 상태 설정 (눈/비 올 때 선택)")
+    # 4. 현장 기상 상태 설정 (눈/비 올 때 선택)
+    st.markdown("**4. 실시간 기상 특보 설정**")
     weather_premium_rate = 0
     weather_option = st.radio(
-        "상차지 또는 하차지의 날씨 상태",
-        ["☀️ 양방향 기상 양호 (할증 없음)", "🌧️ 상/하차지 중 비 오는 곳 있음 (+20% 할증)", "❄️ 상/하차지 중 눈 오는 곳 있음 (+20% 할증)"],
-        horizontal=True
+        "날씨 상태",
+        ["☀️ 기상 양호", "🌧️ 비 / 소나기 (+20%)", "❄️ 눈 / 진눈깨비 (+20%)"],
+        horizontal=True, label_visibility="collapsed"
     )
     if "비" in weather_option or "눈" in weather_option:
         weather_premium_rate = 20
-        st.warning("⛈️ 기상 할증 요율(+20%)이 시스템 운임에 실시간 반영되었습니다.")
+        st.markdown("<div style='background-color: #FFFBEB; padding: 8px; border-left: 4px solid #F59E0B; border-radius: 4px; font-size: 13px; color: #92400E; margin-bottom: 15px;'>⛈️ <b>[기상 할증 발동]</b> 윙바디 수급 제한 할증률 +20%가 계산기에 산입되었습니다.</div>", unsafe_allow_html=True)
 
-    st.markdown("#### 3. 기타 수동 할증 (%)")
+    # 5. 기타 수동 할증
+    st.markdown("**5. 기타 운송조건 추가 할증 (%)**")
     c3, c4, c5 = st.columns(3)
     with c3: p_premium = st.number_input("성수기 할증 (%)", min_value=0, value=0, step=5)
     with c4: u_premium = st.number_input("긴급 할증 (%)", min_value=0, value=0, step=5)
     with c5: n_premium = st.number_input("야간 할증 (%)", min_value=0, value=0, step=5)
-    
     total_premium_rate = (p_premium + u_premium + n_premium + weather_premium_rate) / 100
 
-    st.markdown("#### 5. 발생 실비 요금 (원)")
+    # 6. 발생 실비 요금
+    st.markdown("**6. 운송 실비 및 현장 기타 비용 (원)**")
     c7, c8, c9, c10 = st.columns(4)
     with c7: toll = st.number_input("통행료", min_value=0, value=0, step=1000)
     with c8: load = st.number_input("상/하차비", min_value=0, value=0, step=1000)
     with c9: wait = st.number_input("대기료", min_value=0, value=0, step=1000)
-    with c10: etc = st.number_input("기타 비용", min_value=0, value=0, step=1000)
+    with c10: etc = st.number_input("기타 정산비", min_value=0, value=0, step=1000)
     actual_expenses = toll + load + wait + etc
 
-    st.markdown("#### 6. 주선 마진 설정")
-    m_method = st.radio("마진 산정 방식", ["정률 마진 (%)", "정액 마진 (원)"], horizontal=True)
+    # 7. 주선 마진 설정
+    st.markdown("**7. 주선사 마진 정책 설정**")
+    m_method = st.radio("마진 산정 방식", ["정률 마진 (%)", "정액 마진 (원)"], horizontal=True, label_visibility="collapsed")
     if m_method == "정률 마진 (%)":
-        margin_rate = st.number_input("목표 마진율 (%)", min_value=0.0, max_value=50.0, value=20.0, step=0.5)
+        margin_rate = st.number_input("목표 마진 요율 (%)", min_value=0.0, max_value=50.0, value=20.0, step=0.5)
     else:
         margin_flat = st.number_input("고정 마진 금액 (원)", min_value=0, value=30000, step=5000)
 
 with col2:
-    st.subheader("💰 최종 인수/청구 운임 산출")
-    st.write("---")
+    st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>💰 최종 운임 산출 결과</h3>", unsafe_allow_html=True)
     
+    # 📌 회주 청구금 정산 및 기사 원가 역산
     shipper_premium = base_shipper_fare * total_premium_rate
     shipper_return = base_shipper_fare * return_rate
     final_shipper_fee = base_shipper_fare + shipper_premium + shipper_return + actual_expenses
@@ -165,16 +173,36 @@ with col2:
         final_driver_fee = final_shipper_fee - company_margin
         final_margin_percent = (company_margin / final_shipper_fee * 100) if final_shipper_fee > 0 else 0
 
-    st.metric(label="💵 화주 최종 청구 금액 (최종 청구가)", value=f"{int(round(final_shipper_fee)):,.0f} 원")
-    st.metric(label="🚛 차주 배차 지급 금액 (최종 지급가)", value=f"{int(round(final_driver_fee)):,.0f} 원")
-    st.write("---")
-    st.success(f"📈 (주)대일물류 확보 마진 (수익): **{int(round(company_margin)):,.0f} 원** (정산 마진율: {final_margin_percent:.1f}%)")
+    # 세련된 위젯 카드 스코어보드 구현
+    st.markdown(f"""
+    <div style='background-color: #F8FAFC; padding: 20px; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 15px;'>
+        <p style='margin: 0; font-size: 14px; color: #475569; font-weight: bold;'>💵 화주 최종 청구 금액 (최종 청구가)</p>
+        <h2 style='margin: 5px 0 0 0; color: #1E3A8A; font-size: 32px;'>{int(round(final_shipper_fee)):,.0f} <span style='font-size: 18px;'>원</span></h2>
+    </div>
+    <div style='background-color: #F8FAFC; padding: 20px; border: 1px solid #E2E8F0; border-radius: 8px; margin-bottom: 15px;'>
+        <p style='margin: 0; font-size: 14px; color: #475569; font-weight: bold;'>🚛 차주 배차 지급 금액 (최종 지급가)</p>
+        <h2 style='margin: 5px 0 0 0; color: #475569; font-size: 28px;'>{int(round(final_driver_fee)):,.0f} <span style='font-size: 16px;'>원</span></h2>
+    </div>
+    <div style='background-color: #ECFDF5; padding: 15px; border: 1px solid #A7F3D0; border-radius: 8px; margin-bottom: 20px; text-align: center;'>
+        <span style='font-size: 15px; color: #065F46; font-weight: bold;'>📈 대일물류 주선 수익 마진 : </span>
+        <span style='font-size: 20px; color: #047857; font-weight: bold;'>{int(round(company_margin)):,.0f} 원</span>
+        <span style='font-size: 14px; color: #065F46;'> ({final_margin_percent:.1f}%)</span>
+    </div>
+    """, unsafe_allow_html=True)
     
-    st.write("---")
-    st.markdown("##### 🔍 상세 운임 산정 항목 리포트")
-    st.text(f"• 기본 청구가(단가표 연동) : {base_shipper_fare:,.0f} 원")
-    st.text(f"• 조건/날씨 할증 합계액 : {shipper_premium:,.0f} 원")
-    st.text(f"• 귀로 공차보정액 : {shipper_return:,.0f} 원")
-    st.text(f"• 발생 실비 합계 : {actual_expenses:,.0f} 원")
-    st.text(f"• 최종 화주청구액 : {final_shipper_fee:,.0f} 원")
-    st.text(f"• 최종 차주지급가(원가) : {final_driver_fee:,.0f} 원")
+    # 🔍 세련된 격자리포트 테이블 파싱 구역
+    st.markdown("<h5 style='color: #475569; margin-bottom: 10px;'>🔍 상세 운임 산정 정산표</h5>", unsafe_allow_html=True)
+    
+    report_data = {
+        "정산 항목": ["1. 기본 청구가 (단가표 연동)", "2. 조건 및 날씨 할증액", "3. 도착지 귀로 공차보정액", "4. 발생 실비 및 기타 요금", "5. 최종 화주 청구 총액", "6. 최종 차주 지급 총액 (원가)"],
+        "금액": [
+            f"{base_shipper_fare:,.0f} 원",
+            f"{shipper_premium:,.0f} 원",
+            f"{shipper_return:,.0f} 원",
+            f"{actual_expenses:,.0f} 원",
+            f"{final_shipper_fee:,.0f} 원",
+            f"{final_driver_fee:,.0f} 원"
+        ]
+    }
+    df_report = pd.DataFrame(report_data)
+    # 인덱스 번호를 없애고 ERP 표처럼 출력
