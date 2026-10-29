@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import requests
 
 # 페이지 설정
 st.set_page_config(page_title="(주)대일물류 운임 계산기", layout="wide")
@@ -31,7 +30,6 @@ if not st.session_state["authenticated"]:
 # ------------------------------------------------------------------
 # 🗺️ 2단계: PDF 명세 데이터 기반 하차지 공차 보정률 데이터베이스 (DB)
 # ------------------------------------------------------------------
-# 요청하신 5개 지역(수원, 대전, 대구, 화성, 부천) 요율 정밀 추가 완료
 destination_margin_rates = {
     "서울": 0.00, 
     "인천": 0.00, 
@@ -61,67 +59,7 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진
-# ------------------------------------------------------------------
-def get_korea_live_weather(region_name):
-    region_grid_map = {
-        "수도권 (서울/경기/인천)": {"nx": 60, "ny": 127},
-        "충청권 (대전/세종/충남북)": {"nx": 67, "ny": 100},
-        "전라권 (광주/전남북)": {"nx": 58, "ny": 74},
-        "경북권 (대구/경북)": {"nx": 89, "ny": 90},
-        "경남권 (부산/울산/경남)": {"nx": 98, "ny": 76},
-        "강원권 (강원특별자치도)": {"nx": 73, "ny": 134}
-    }
-    
-    grid_key = "수도권 (서울/경기/인천)"
-    if "충남" in region_name or "충북" in region_name or "충청" in region_name or "대전" in region_name: 
-        grid_key = "충청권 (대전/세종/충남북)"
-    elif "전남" in region_name or "전북" in region_name or "전라" in region_name: 
-        grid_key = "전라권 (광주/전남북)"
-    elif "경북" in region_name or "대구" in region_name: 
-        grid_key = "경북권 (대구/경북)"
-    elif "경남" in region_name or "부산" in region_name or "울산" in region_name: 
-        grid_key = "경남권 (부산/울산/경남)"
-    elif "강원" in region_name: 
-        grid_key = "강원권 (강원특별자치도)"
-
-    grid = region_grid_map.get(grid_key, {"nx": 60, "ny": 127})
-    
-    try:
-        from datetime import datetime
-        now = datetime.now()
-        base_date = now.strftime("%Y%m%d")
-        
-        if now.minute < 45:
-            base_time = f"{now.hour - 1:02d}00" if now.hour > 0 else "2300"
-            if now.hour == 0:
-                from datetime import timedelta
-                base_date = (now - timedelta(days=1)).strftime("%Y%m%d")
-        else:
-            base_time = f"{now.hour:02d}00"
-
-        url = f"http://data.go.kr{base_date}&base_time={base_time}&nx={grid['nx']}&ny={grid['ny']}"
-        
-        response = requests.get(url, timeout=3).json()
-        item_list = response.get("response", {}).get("body", {}).get("items", {}).get("item", [])
-        
-        pty_value = 0
-        for item in item_list:
-            if item.get("category") == "PTY":
-                pty_value = int(item.get("obsrValue", 0))
-                break
-        
-        if pty_value == 1 or pty_value == 2 or pty_value == 4:
-            return True, "?: 비 / 소나기 (강수 감지)", False
-        elif pty_value == 3:
-            return True, "?: 눈 / 진눈깨비 (강설 감지)", False
-        else:
-            return False, "☀️ 맑음 / 흐림 (운송 양호)", False
-    except:
-        return False, "🔍 통신 지연 (수동 버튼 가동)", True
-
-# ------------------------------------------------------------------
-# 🔓 4단계: 메인 정산 계산기 구동
+# 🔓 3단계: 메인 정산 계산기 구동
 # ------------------------------------------------------------------
 def get_base_shipper_fare(temp_type, truck_size, km):
     matched_km = int(round(km / 5.0) * 5)
@@ -166,43 +104,26 @@ with col1:
     base_shipper_fare = get_base_shipper_fare(temp_type, selected_truck, input_distance)
     st.info(f"🎯 단가표 연동 완료: 기본 청구가 = **{base_shipper_fare:,.0f} 원**")
 
-    st.markdown("#### 🗺️ 상·하차지 설정 및 공차 보정율 자동 매칭")
-    c_loc1, c_loc2 = st.columns(2)
-    with c_loc1:
-        start_region_major = st.selectbox(
-            "상차지 권역 선택",
-            ["수도권 (서울/경기/인천)", "충청권 (대전/세종/충남북)", "전라권 (광주/전남북)", "경북권 (대구/경북)", "경남권 (부산/울산/경남)", "강원권 (강원특별자치도)"],
-            index=0
-        )
-    with c_loc2:
-        end_region_detail = st.selectbox(
-            "하차 지역 선택 (PDF 기준 자동 분류)",
-            list(destination_margin_rates.keys()),
-            index=0
-        )
-        
+    st.markdown("#### 🗺️ 하차 지역 선택 (공차 보정율 자동 매칭)")
+    end_region_detail = st.selectbox(
+        "하차 지역 선택 (PDF 기준 자동 분류)",
+        list(destination_margin_rates.keys()),
+        index=0
+    )
     return_rate = destination_margin_rates[end_region_detail]
     st.success(f"📊 **[공차보정 자동 연동]** {end_region_detail} 지역 ➡️ **귀로 공차 보정률: {return_rate*100:.0f}%** 적용")
 
-    st.markdown("#### 🌦️ 실시간 날씨 현황 중계")
-    start_has_rain, start_weather_text, start_error = get_korea_live_weather(start_region_major)
-    end_has_rain, end_weather_text, end_error = get_korea_live_weather(end_region_detail)
-    
-    st.markdown(f"📍 **상차지 날씨:** {start_weather_text} | 📍 **하차지 날씨:** {end_weather_text}")
-    
+    # 🌧️ 기상청 서버 장애 극복을 위한 직관적인 1초 클릭 날씨 패널
+    st.markdown("#### 🌦️ 현장 기상 상태 설정 (눈/비 올 때 선택)")
     weather_premium_rate = 0
-    if start_error or end_error:
-        st.info("ℹ️ 기상 위성 통신 지연 시 아래 체크박스로 수동 제어가 가능합니다.")
-        manual_weather = st.checkbox("⚠️ 현재 현장에 기상 악화(눈/비)가 발생하여 할증을 수동 적용합니다.")
-        if manual_weather:
-            weather_premium_rate = 20
-            st.warning("⛈️ 기상 악화 할증(+20%) 강제 가산 완료")
-    else:
-        if start_has_rain or end_has_rain:
-            weather_premium_rate = 20
-            st.warning("⛈️ 상·하차지 중 악천후 지역 감지 ➡️ **날씨 할증(+20%)** 자동 반영")
-        else:
-            st.success("☀️ 상·하차지 기상 양호 (날씨 할증 없음)")
+    weather_option = st.radio(
+        "상차지 또는 하차지의 날씨 상태",
+        ["☀️ 양방향 기상 양호 (할증 없음)", "🌧️ 상/하차지 중 비 오는 곳 있음 (+20% 할증)", "❄️ 상/하차지 중 눈 오는 곳 있음 (+20% 할증)"],
+        horizontal=True
+    )
+    if "비" in weather_option or "눈" in weather_option:
+        weather_premium_rate = 20
+        st.warning("⛈️ 기상 할증 요율(+20%)이 시스템 운임에 실시간 반영되었습니다.")
 
     st.markdown("#### 3. 기타 수동 할증 (%)")
     c3, c4, c5 = st.columns(3)
@@ -247,3 +168,14 @@ with col2:
     st.metric(label="💵 화주 최종 청구 금액 (최종 청구가)", value=f"{int(round(final_shipper_fee)):,.0f} 원")
     st.metric(label="🚛 차주 배차 지급 금액 (최종 지급가)", value=f"{int(round(final_driver_fee)):,.0f} 원")
     st.write("---")
+    st.success(f"📈 (주)대일물류 확보 마진 (수익): **{int(round(company_margin)):,.0f} 원** (정산 마진율: {final_margin_percent:.1f}%)")
+    
+    # 🔍 완벽 마감 완료된 상세 요금 리포트 패널
+    st.write("---")
+    st.markdown("##### 🔍 상세 운임 산정 항목 리포트")
+    st.text(f"• 기본 청구가(단가표 연동) : {base_shipper_fare:,.0f} 원")
+    st.text(f"• 조건/날씨 할증 합계액 : {shipper_premium:,.0f} 원")
+    st.text(f"• 귀로 공차보정액 : {shipper_return:,.0f} 원")
+    st.text(f"• 발생 실비 합계 : {actual_expenses:,.0f} 원")
+    st.text(f"• 최종 화주청구액 : {final_shipper_fee:,.0f} 원")
+    st.text(f"• 최종 차주지급가(원가) : {final_driver_fee:,.0f} 원")
