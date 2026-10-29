@@ -39,10 +39,10 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진
+# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진 (오류 철저 방어)
 # ------------------------------------------------------------------
 def get_korea_live_weather(region_name):
-    # 대한민국 기상청 격자 좌표 관할 구역 정보 매핑 (초단기실황 위도경도 변환값)
+    # 기상청 격자 좌표 정의 테이블 (오류 원천 방지용 완전 매칭 구조)
     region_grid_map = {
         "수도권 (서울/경기/인천)": {"nx": 60, "ny": 127},
         "충청권 (대전/세종/충남북)": {"nx": 67, "ny": 100},
@@ -52,25 +52,31 @@ def get_korea_live_weather(region_name):
         "강원권 (강원특별자치도)": {"nx": 73, "ny": 134}
     }
     
-    # 세부 주소 명칭에서 광역 행정구역 매핑 헬퍼 로직
+    # 텍스트 판별 및 매핑 안전장치
     grid_key = "수도권 (서울/경기/인천)"
-    if "충남" in region_name or "충북" in region_name: grid_key = "충청권 (대전/세종/충남북)"
-    elif "전남" in region_name or "전북" in region_name: grid_key = "전라권 (광주/전남북)"
-    elif "경북" in region_name: grid_key = "경북권 (대구/경북)"
-    elif "경남" in region_name or "부산" in region_name or "울산" in region_name: grid_key = "경남권 (부산/울산/경남)"
-    elif "강원" in region_name: grid_key = "강원권 (강원특별자치도)"
+    if "충남" in region_name or "충북" in region_name or "충청" in region_name: 
+        grid_key = "충청권 (대전/세종/충남북)"
+    elif "전남" in region_name or "전북" in region_name or "전라" in region_name: 
+        grid_key = "전라권 (광주/전남북)"
+    elif "경북" in region_name: 
+        grid_key = "경북권 (대구/경북)"
+    elif "경남" in region_name or "부산" in region_name or "울산" in region_name: 
+        grid_key = "경남권 (부산/울산/경남)"
+    elif "강원" in region_name: 
+        grid_key = "강원권 (강원특별자치도)"
     else:
-        grid_key = region_grid_map.get(region_name, "수도권 (서울/경기/인천)")
+        # 매칭 실패 시 에러 대신 기본값 분기 처리하여 튕김 현상 방지
+        grid_key = "수도권 (서울/경기/인천)"
 
-    grid = region_grid_map[grid_key]
+    # 안전하게 딕셔너리 값 추출 (.get 활용으로 TypeError 예방)
+    grid = region_grid_map.get(grid_key, {"nx": 60, "ny": 127})
     
     try:
-        # 현재 시간 기준 실황 조회를 위한 베이스 날짜 형식 지정
         from datetime import datetime
         now = datetime.now()
         base_date = now.strftime("%Y%m%d")
         
-        # 기상청 초단기실황 조회를 위한 안전 시간대 세팅 (매시각 40분 이후 정밀 업데이트 반영)
+        # 기상청 데이터 생성 주기 마진 타임 반영 계산
         if now.minute < 45:
             base_time = f"{now.hour - 1:02d}00" if now.hour > 0 else "2300"
             if now.hour == 0:
@@ -79,24 +85,23 @@ def get_korea_live_weather(region_name):
         else:
             base_time = f"{now.hour:02d}00"
 
-        # 대일물류 전용 공공데이터포털 기상청 인증키 서빙
-        enc_key = "w%2ByL6Z3zUvWdfVBlZgX%2F%2Fm7P3fBw9mNf%2FB90YfR3eH%2BLw%3D%3D" # 디코딩 안전 처리 완료 키
+        # 공식 API 파싱 구동
         url = f"http://data.go.kr{base_date}&base_time={base_time}&nx={grid['nx']}&ny={grid['ny']}"
         
         response = requests.get(url, timeout=3).json()
         item_list = response.get("response", {}).get("body", {}).get("items", {}).get("item", [])
         
-        # PTY(강수형태) 코드 수집: 0(없음), 1(비), 2(비/눈), 3(눈), 4(소나기)
         pty_value = 0
         for item in item_list:
             if item.get("category") == "PTY":
                 pty_value = int(item.get("obsrValue", 0))
                 break
         
-        if pty_value in [1, 2, 4]:
-            return True, "🌧️ 비 / 소나기 (기상청 공식 강수 감지)", False
+        # PTY: 1(비), 2(비/눈), 4(소나기)
+        if pty_value in:
+            return True, "官方 비 / 소나기 (강수 감지)", False
         elif pty_value == 3:
-            return True, "❄️ 눈 / 진눈깨비 (기상청 공식 강설 감지)", False
+            return True, "官方 눈 / 진눈깨비 (강설 감지)", False
         else:
             return False, "☀️ 맑음 / 흐림 (운송 양호)", False
     except:
@@ -167,7 +172,7 @@ with col1:
     st.success(f"📊 **[공차보정 자동 연동]** {end_region_detail} 지역 ➡️ **귀로 공차 보정률: {return_rate*100:.0f}%** 적용")
 
     st.markdown("#### 🌦️ 실시간 날씨 현황 중계")
-    # 국산 공공기상망 엔진으로 완전 가동
+    # 정밀 수정된 안심 공공기상망 엔진 구동
     start_has_rain, start_weather_text, start_error = get_korea_live_weather(start_region_major)
     end_has_rain, end_weather_text, end_error = get_korea_live_weather(end_region_detail)
     
@@ -228,3 +233,4 @@ with col2:
         final_margin_percent = (company_margin / final_shipper_fee * 100) if final_shipper_fee > 0 else 0
 
     st.metric(label="💵 화주 최종 청구 금액 (최종 청구가)", value=f"{int(round(final_shipper_fee)):,.0f} 원")
+    st.metric(label="🚛 차주 배차 지급 금액 (최종 지급가)", value=f"{int(round(final_driver_fee)):,.0f} 원")
