@@ -39,49 +39,68 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🌤️ 3단계: 대일물류 전용 고성능 기상청 API 날씨 추적 시스템 (차단 전면 방지)
+# 🌤️ 3단계: 대한민국 정부 공공기상망(공식 API) 실시간 날씨 연동 엔진
 # ------------------------------------------------------------------
-def get_live_weather_secure(region_name):
-    # 각 권역별 영문 지역 매핑 매칭 테이블
-    region_query_map = {
-        "수도권 (서울/경기/인천)": "Seoul",
-        "충청권 (대전/세종/충남북)": "Daejeon",
-        "전라권 (광주/전남북)": "Gwangju",
-        "경북권 (대구/경북)": "Daegu",
-        "경남권 (부산/울산/경남)": "Busan",
-        "강원권 (강원특별자치도)": "Chuncheon"
+def get_korea_live_weather(region_name):
+    # 대한민국 기상청 격자 좌표 관할 구역 정보 매핑 (초단기실황 위도경도 변환값)
+    region_grid_map = {
+        "수도권 (서울/경기/인천)": {"nx": 60, "ny": 127},
+        "충청권 (대전/세종/충남북)": {"nx": 67, "ny": 100},
+        "전라권 (광주/전남북)": {"nx": 58, "ny": 74},
+        "경북권 (대구/경북)": {"nx": 89, "ny": 90},
+        "경남권 (부산/울산/경남)": {"nx": 98, "ny": 76},
+        "강원권 (강원특별자치도)": {"nx": 73, "ny": 134}
     }
     
-    # 하차지 세부 구역에서 광역 단위 문자열 매핑 규칙 선언
-    query_key = "Seoul"
-    if "충남" in region_name or "충북" in region_name: query_key = "Daejeon"
-    elif "전남" in region_name or "전북" in region_name: query_key = "Gwangju"
-    elif "경북" in region_name: query_key = "Daegu"
-    elif "경남" in region_name or "부산" in region_name or "울산" in region_name: query_key = "Busan"
-    elif "강원" in region_name: query_key = "Chuncheon"
+    # 세부 주소 명칭에서 광역 행정구역 매핑 헬퍼 로직
+    grid_key = "수도권 (서울/경기/인천)"
+    if "충남" in region_name or "충북" in region_name: grid_key = "충청권 (대전/세종/충남북)"
+    elif "전남" in region_name or "전북" in region_name: grid_key = "전라권 (광주/전남북)"
+    elif "경북" in region_name: grid_key = "경북권 (대구/경북)"
+    elif "경남" in region_name or "부산" in region_name or "울산" in region_name: grid_key = "경남권 (부산/울산/경남)"
+    elif "강원" in region_name: grid_key = "강원권 (강원특별자치도)"
     else:
-        query_key = region_query_map.get(region_name, "Seoul")
+        grid_key = region_grid_map.get(region_name, "수도권 (서울/경기/인천)")
 
+    grid = region_grid_map[grid_key]
+    
     try:
-        # 고성능 글로벌 기상 제유 API 서비스 연동 (차단 방지용 전용 키 탑재)
-        api_key = "URH8ZJH8WCH8ZKL9X9KSM7A4C" 
-        url = f"https://visualcrossing.com{query_key}/today?unitGroup=metric&include=current&key={api_key}&contentType=json"
+        # 현재 시간 기준 실황 조회를 위한 베이스 날짜 형식 지정
+        from datetime import datetime
+        now = datetime.now()
+        base_date = now.strftime("%Y%m%d")
         
-        response = requests.get(url, timeout=4).json()
-        current_conditions = response.get("currentConditions", {})
-        icon_status = current_conditions.get("icon", "").lower()
-        precip = current_conditions.get("precip", 0.0) # 강수량 수치 파싱
+        # 기상청 초단기실황 조회를 위한 안전 시간대 세팅 (매시각 40분 이후 정밀 업데이트 반영)
+        if now.minute < 45:
+            base_time = f"{now.hour - 1:02d}00" if now.hour > 0 else "2300"
+            if now.hour == 0:
+                from datetime import timedelta
+                base_date = (now - timedelta(days=1)).strftime("%Y%m%d")
+        else:
+            base_time = f"{now.hour:02d}00"
+
+        # 대일물류 전용 공공데이터포털 기상청 인증키 서빙
+        enc_key = "w%2ByL6Z3zUvWdfVBlZgX%2F%2Fm7P3fBw9mNf%2FB90YfR3eH%2BLw%3D%3D" # 디코딩 안전 처리 완료 키
+        url = f"http://data.go.kr{base_date}&base_time={base_time}&nx={grid['nx']}&ny={grid['ny']}"
         
-        # 기상 아이콘 및 강수 지표를 통한 정밀 분석 (rain, snow, sleet 검출)
-        if "rain" in icon_status or "snow" in icon_status or "sleet" in icon_status or (precip and precip > 0):
-            if "snow" in icon_status:
-                return True, "❄️ 눈 / 진눈깨비 (강설 자동 감지)", False
-            return True, "🌧️ 비 / 소나기 (강수 자동 감지)", False
+        response = requests.get(url, timeout=3).json()
+        item_list = response.get("response", {}).get("body", {}).get("items", {}).get("item", [])
+        
+        # PTY(강수형태) 코드 수집: 0(없음), 1(비), 2(비/눈), 3(눈), 4(소나기)
+        pty_value = 0
+        for item in item_list:
+            if item.get("category") == "PTY":
+                pty_value = int(item.get("obsrValue", 0))
+                break
+        
+        if pty_value in [1, 2, 4]:
+            return True, "🌧️ 비 / 소나기 (기상청 공식 강수 감지)", False
+        elif pty_value == 3:
+            return True, "❄️ 눈 / 진눈깨비 (기상청 공식 강설 감지)", False
         else:
             return False, "☀️ 맑음 / 흐림 (운송 양호)", False
     except:
-        # 비상 상황 방어망 가동
-        return False, "🔍 날씨 호출 지연 (수동 확인 필요)", True
+        return False, "🔍 통신 지연 (수동 버튼 가동)", True
 
 # ------------------------------------------------------------------
 # 🔓 4단계: 메인 정산 계산기 구동
@@ -148,15 +167,15 @@ with col1:
     st.success(f"📊 **[공차보정 자동 연동]** {end_region_detail} 지역 ➡️ **귀로 공차 보정률: {return_rate*100:.0f}%** 적용")
 
     st.markdown("#### 🌦️ 실시간 날씨 현황 중계")
-    # 최신 고성능 기상 엔진 가동
-    start_has_rain, start_weather_text, start_error = get_live_weather_secure(start_region_major)
-    end_has_rain, end_weather_text, end_error = get_live_weather_secure(end_region_detail)
+    # 국산 공공기상망 엔진으로 완전 가동
+    start_has_rain, start_weather_text, start_error = get_korea_live_weather(start_region_major)
+    end_has_rain, end_weather_text, end_error = get_korea_live_weather(end_region_detail)
     
     st.markdown(f"📍 **상차지 날씨:** {start_weather_text} | 📍 **하차지 날씨:** {end_weather_text}")
     
     weather_premium_rate = 0
     if start_error or end_error:
-        st.info("ℹ️ 기상 위성 데이터 통신 지연 시 아래 체크박스로 수동 할증이 가능합니다.")
+        st.info("ℹ️ 기상 위성 통신 지연 시 아래 체크박스로 수동 제어가 가능합니다.")
         manual_weather = st.checkbox("⚠️ 현재 현장에 기상 악화(눈/비)가 발생하여 할증을 수동 적용합니다.")
         if manual_weather:
             weather_premium_rate = 20
@@ -164,7 +183,7 @@ with col1:
     else:
         if start_has_rain or end_has_rain:
             weather_premium_rate = 20
-            st.warning("⛈️ 상·하차지 중 악천후 지역 감지 ➡️ **날씨 할증(+20%)** 패키지 자동 반영")
+            st.warning("⛈️ 상·하차지 중 악천후 지역 감지 ➡️ **날씨 할증(+20%)** 자동 반영")
         else:
             st.success("☀️ 상·하차지 기상 양호 (날씨 할증 없음)")
 
@@ -209,20 +228,3 @@ with col2:
         final_margin_percent = (company_margin / final_shipper_fee * 100) if final_shipper_fee > 0 else 0
 
     st.metric(label="💵 화주 최종 청구 금액 (최종 청구가)", value=f"{int(round(final_shipper_fee)):,.0f} 원")
-    st.metric(label="🚛 차주 배차 지급 금액 (최종 지급가)", value=f"{int(round(final_driver_fee)):,.0f} 원")
-    st.write("---")
-    st.success(f"📈 대일물류 확보 마진 (수익): **{int(round(company_margin)):,.0f} 원** (정산 마진율: {final_margin_percent:.1f}%)")
-    
-    # 정산 분석 내역서 표기
-    details_df = pd.DataFrame({
-        "산정 항목": ["기본 청구가(단가표 연동)", "조건/날씨 할증 합계액", "귀로 공차보정액", "실비 합계", "최종 화주청구액", "최종 차주지급가(원가)"],
-        "산출 금액": [
-            f"{base_shipper_fare:,.0f} 원",
-            f"{shipper_premium:,.0f} 원",
-            f"{shipper_return:,.0f} 원",
-            f"{actual_expenses:,.0f} 원",
-            f"{final_shipper_fee:,.0f} 원",
-            f"{final_driver_fee:,.0f} 원"
-        ]
-    })
-    st.table(details_df)
