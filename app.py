@@ -1,7 +1,7 @@
 import streamlit as st
 
 # 페이지 설정 및 테마 정립
-st.set_page_config(page_title="(주)대일물류 통합 화물 정산 시스템", layout="wide")
+st.set_page_config(page_title="(주)대일물류 통합 화물 운송료 산출 시스템", layout="wide")
 
 # ------------------------------------------------------------------
 # 🔒 1단계: 보안 비밀번호 세션 관리 (기존 암호 8886 유지)
