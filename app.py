@@ -56,7 +56,7 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🌤️ 3단계: 실시간 권역별 기상 상태 판단 함수 (기상 코드 정밀 수정)
+# 🌤️ 3단계: 실시간 권역별 기상 상태 판단 함수 (안전장치 추가)
 # ------------------------------------------------------------------
 def get_live_weather(region_name):
     region_coords = {
@@ -68,7 +68,6 @@ def get_live_weather(region_name):
         "강원권 (강원특별자치도)": {"lat": 37.8853, "lon": 127.7298}
     }
     
-    # 광역 권역 매핑 규칙 안전하게 선언
     coord_key = "수도권 (서울/경기/인천)"
     if "충남" in region_name or "충북" in region_name: coord_key = "충청권 (대전/세종/충남북)"
     elif "전남" in region_name or "전북" in region_name: coord_key = "전라권 (광주/전남북)"
@@ -82,18 +81,18 @@ def get_live_weather(region_name):
         response = requests.get(url, timeout=3).json()
         weather_code = response.get("current_weather", {}).get("weathercode", 0)
         
-        # 세계기상기구(WMO) 강수 및 강설 코드 목록 완벽 대입
         rain_codes = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99]
         snow_codes = [71, 73, 75, 77, 85, 86]
         
         if weather_code in rain_codes:
-            return True, "🌧️ 비 / 소나기 (강수 감지)"
+            return True, "🌧️ 비 / 소나기 (강수 감지)", False
         elif weather_code in snow_codes:
-            return True, "❄️ 눈 / 진눈깨비 (강설 감지)"
+            return True, "❄️ 눈 / 진눈깨비 (강설 감지)", False
         else:
-            return False, "☀️ 맑음 / 흐림 (강수 없음)"
+            return False, "☀️ 맑음 / 흐림 (강수 없음)", False
     except:
-        return False, "🔍 날씨 데이터 조회 불가"
+        # API 오류 시 시스템 먹통 방지를 위해 에러 플래그(True) 반환
+        return False, "🔍 날씨 데이터 조회 불가 (네트워크 차단)", True
 
 # ------------------------------------------------------------------
 # 🔓 4단계: 메인 정산 계산기 구동
@@ -160,17 +159,25 @@ with col1:
     st.success(f"📊 **[공차보정 자동 연동]** {end_region_detail} 지역 ➡️ **귀로 공차 보정률: {return_rate*100:.0f}%** 적용")
 
     st.markdown("#### 🌦️ 실시간 날씨 현황 중계")
-    start_has_rain, start_weather_text = get_live_weather(start_region_major)
-    end_has_rain, end_weather_text = get_live_weather(end_region_detail)
+    start_has_rain, start_weather_text, start_error = get_live_weather(start_region_major)
+    end_has_rain, end_weather_text, end_error = get_live_weather(end_region_detail)
     
     st.markdown(f"📍 **상차지 날씨:** {start_weather_text} | 📍 **하차지 날씨:** {end_weather_text}")
     
-    if start_has_rain or end_has_rain:
-        weather_premium_rate = 20
-        st.warning("⛈️ 상·하차지 중 악천후 지역 감지 ➡️ **날씨 할증(+20%)** 자동 가산")
+    # 이중 안전장치 구동 (서버 응답 불가 상황이거나, 실제로 눈/비가 오는 경우)
+    weather_premium_rate = 0
+    if start_error or end_error:
+        st.info("ℹ️ 현재 실시간 날씨 서버 연결이 원활하지 않습니다. 아래 버튼으로 할증을 수동 제어할 수 있습니다.")
+        manual_weather = st.checkbox("⚠️ 현재 상차지나 하차지에 눈/비가 내리고 있어 할증을 적용합니다.")
+        if manual_weather:
+            weather_premium_rate = 20
+            st.warning("⛈️ **[수동 제어 가동]** 기상 악화 할증(+20%)이 정산 금액에 강제 가산되었습니다.")
     else:
-        weather_premium_rate = 0
-        st.success("☀️ 상·하차지 기상 양호 (날씨 할증 없음)")
+        if start_has_rain or end_has_rain:
+            weather_premium_rate = 20
+            st.warning("⛈️ 상·하차지 중 악천후 지역 감지 ➡️ **날씨 할증(+20%)** 자동 가산")
+        else:
+            st.success("☀️ 상·하차지 기상 양호 (날씨 할증 없음)")
 
     st.markdown("#### 3. 기타 수동 할증 (%)")
     c3, c4, c5 = st.columns(3)
