@@ -19,7 +19,7 @@ def check_password():
 
 if not st.session_state["authenticated"]:
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔒 (주)대일물류 통합 화물 정산 시스템</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔒 (주)대일물류 통합 화물 운임 산출 시스템</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #6B7280;'>본 시스템은 인증된 임직원만 접근 가능합니다.</p>", unsafe_allow_html=True)
     
     col_l, col_m, col_r = st.columns([1, 2, 1])
@@ -88,7 +88,7 @@ def get_base_shipper_fare(temp_type, truck_size, km):
     return int(round(final_fare / 1000) * 1000)
 
 # 세련된 메인 헤더바
-st.markdown("<div style='background-color: #1E3A8A; padding: 15px; border-radius: 8px; margin-bottom: 25px;'><h1 style='color: white; margin: 0; font-size: 24px;'>📊 (주)대일물류 화물 운임 정산 시스템</h1></div>", unsafe_allow_html=True)
+st.markdown("<div style='background-color: #1E3A8A; padding: 15px; border-radius: 8px; margin-bottom: 25px;'><h1 style='color: white; margin: 0; font-size: 24px;'>📊 (주)대일물류 통합 화물 운임 산출 시스템</h1></div>", unsafe_allow_html=True)
 
 # 화면 레이아웃 분할 (좌측 제어판 / 우측 결과판)
 col1, col2 = st.columns([1.1, 1])
