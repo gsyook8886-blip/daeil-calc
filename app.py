@@ -22,7 +22,7 @@ if not st.session_state["authenticated"]:
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔒 (주)대일물류 화물 운임 산출 시스템</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #6B7280;'>본 시스템은 인증된 임직원만 접근 가능합니다.</p>", unsafe_allow_html=True)
     
-    col_l, col_m, col_r = st.columns()
+    col_l, col_m, col_r = st.columns(3)
     with col_m:
         st.text_input("접속 비밀번호 입력", type="password", key="password_input", on_change=check_password)
         if st.session_state.get("password_error"):
