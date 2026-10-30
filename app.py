@@ -1,7 +1,7 @@
 import streamlit as st
 
-# 페이지 설정 및 테마 정립
-st.set_page_config(page_title="(주)대일물류 통합 화물 정산 시스템", layout="wide")
+# 페이지 설정 (요청하신 공식 타이틀로 브라우저 탭 이름 반영)
+st.set_page_config(page_title="(주)대일물류 화물 운임 산출 시스템", layout="wide")
 
 # ------------------------------------------------------------------
 # 🔒 1단계: 보안 비밀번호 세션 관리 (기존 암호 8886 유지)
@@ -45,14 +45,12 @@ destination_margin_rates = {
 # 🔓 3단계: [정밀 튜닝 완료] 개발사용 DB 매개변수 매트릭스 기반 단가 산출 엔진
 # ------------------------------------------------------------------
 def get_base_shipper_fare(temp_type, truck_size, km):
-    # 올려주신 매개변수 테이블 고정값 완벽 이식
-    # Fixed_Fee, Cost_A(100km 이하), Cost_B(100km 초과)
     param_table = {
         "1톤": {"fixed": 40000, "cost_a": 800, "cost_b": 300},
         "1.4톤": {"fixed": 47000, "cost_a": 800, "cost_b": 300},
         "2.5톤": {"fixed": 62000, "cost_a": 800, "cost_b": 300},
         "3.5톤": {"fixed": 72000, "cost_a": 800, "cost_b": 300},
-        "3.5톤 광폭": {"fixed": 77000, "cost_a": 800, "cost_b": 300}, # 대일물류 비율 유지
+        "3.5톤 광폭": {"fixed": 77000, "cost_a": 800, "cost_b": 300},
         "5톤": {"fixed": 86500, "cost_a": 1050, "cost_b": 550},
         "5톤 플러스": {"fixed": 90000, "cost_a": 1050, "cost_b": 550},
         "5톤 장축": {"fixed": 95000, "cost_a": 1050, "cost_b": 550},
@@ -64,23 +62,19 @@ def get_base_shipper_fare(temp_type, truck_size, km):
         "25톤": {"fixed": 164000, "cost_a": 1600, "cost_b": 700}
     }
     
-    # 예외 방어용 매핑
     p = param_table.get(truck_size, param_table["1톤"])
     
-    # 기획 수식 대입 계산
     if km <= 100:
         fare = p["fixed"] + (km * p["cost_a"])
     else:
         fare = p["fixed"] + (100 * p["cost_a"]) + ((km - 100) * p["cost_b"])
         
-    # 냉장 / 동 프리미엄 배수 반영
     if temp_type == "냉장 / 동":
         fare = fare * 1.55
         
-    # 1,000원 단위 절삭 깔끔화
     return int(round(fare / 1000) * 1000)
 
-# 세련된 메인 헤더바
+# 메인 상단 헤더바 (요청하신 공식 상호로 동시 적용 완료)
 st.markdown("<div style='background-color: #1E3A8A; padding: 15px; border-radius: 8px; margin-bottom: 25px;'><h1 style='color: white; margin: 0; font-size: 24px;'>📊 (주)대일물류 화물 운임 산출 시스템</h1></div>", unsafe_allow_html=True)
 
 # 화면 레이아웃 분할
@@ -104,7 +98,7 @@ with col1:
     st.info(f"🎯 기본 청구가 자동 추출 완료: {base_shipper_fare:,.0f} 원")
 
     st.markdown("**3. 하차 지역 선택 (귀로 공차 보정 자동 매칭)**")
-    end_region_detail = st.selectbox("하차 지역 선택", list(destination_margin_rates.keys()), index=1, label_visibility="collapsed") # 인천 기본 선택
+    end_region_detail = st.selectbox("하차 지역 선택", list(destination_margin_rates.keys()), index=1, label_visibility="collapsed")
     return_rate = destination_margin_rates[end_region_detail]
     st.success(f"📊 공차보정 연동: {end_region_detail} 권역 요율 +{return_rate*100:.0f}% 적용")
 
@@ -144,7 +138,6 @@ with col1:
 with col2:
     st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>💰 최종 운임 산출 결과</h3>", unsafe_allow_html=True)
     
-    # 📌 화주 청구금 정산 및 기사 원가 역산
     shipper_premium = base_shipper_fare * total_premium_rate
     shipper_return = base_shipper_fare * return_rate
     final_shipper_fee = base_shipper_fare + shipper_premium + shipper_return + actual_expenses
@@ -172,7 +165,7 @@ with col2:
     st.markdown("<h5 style='color: #1E3A8A; font-weight: bold;'>📋 상세 운임 산정 항목 리포트</h5>", unsafe_allow_html=True)
     with st.container(border=True):
         st.write(f"• 1. 기본 청구가 (단가표 연동) : **{base_shipper_fare:,.0f} 원**")
-        st.write(f"• 2. 조건 및 날씨 할증액 합계 : **{shipper_premium:,.0f} 원**")
+        st.write(f"• 2. Condition 요율 기반 할증액 : **{shipper_premium:,.0f} 원**")
         st.write(f"• 3. 도착지 귀로 공차 보정액 : **{shipper_return:,.0f} 원**")
         st.write(f"• 4. 상하차/통행료 등 실비 합계 : **{actual_expenses:,.0f} 원**")
         st.write("---")
