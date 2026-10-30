@@ -1,6 +1,6 @@
 import streamlit as st
 
-# 페이지 설정 (요청하신 공식 타이틀로 브라우저 탭 이름 반영)
+# 페이지 설정 (공식 타이틀 및 넓은 화면 테마 정립)
 st.set_page_config(page_title="(주)대일물류 화물 운임 산출 시스템", layout="wide")
 
 # ------------------------------------------------------------------
@@ -30,7 +30,7 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 # ------------------------------------------------------------------
-# 🗺️ 2단계: 하차지 공차 보정률 데이터베이스
+# 🗺️ 2단계: 하차지 공차 보정률 데이터베이스 (수원, 대전, 대구, 부천, 화성 완비)
 # ------------------------------------------------------------------
 destination_margin_rates = {
     "서울": 0.00, "인천": 0.00, "부천": 0.00,
@@ -42,7 +42,7 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🔓 3단계: [정밀 튜닝 완료] 개발사용 DB 매개변수 매트릭스 기반 단가 산출 엔진
+# 🔓 3단계: 매개변수 매트릭스 기반 정밀 단가 산출 엔진
 # ------------------------------------------------------------------
 def get_base_shipper_fare(temp_type, truck_size, km):
     param_table = {
@@ -74,7 +74,7 @@ def get_base_shipper_fare(temp_type, truck_size, km):
         
     return int(round(fare / 1000) * 1000)
 
-# 메인 상단 헤더바 (요청하신 공식 상호로 동시 적용 완료)
+# 메인 상단 헤더바 공식 명칭 부여
 st.markdown("<div style='background-color: #1E3A8A; padding: 15px; border-radius: 8px; margin-bottom: 25px;'><h1 style='color: white; margin: 0; font-size: 24px;'>📊 (주)대일물류 화물 운임 산출 시스템</h1></div>", unsafe_allow_html=True)
 
 # 화면 레이아웃 분할
@@ -160,7 +160,7 @@ with col2:
         
     st.success(f"📈 주선 수익 마진 : {int(round(company_margin)):,.0f} 원 ({final_margin_percent:.1f}%)")
     
-    # 순정 가독성 리포트 패널
+    # [정밀 복구 완료] 상세 가독성 리포트 패널 마감처리
     st.write("---")
     st.markdown("<h5 style='color: #1E3A8A; font-weight: bold;'>📋 상세 운임 산정 항목 리포트</h5>", unsafe_allow_html=True)
     with st.container(border=True):
