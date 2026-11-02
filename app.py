@@ -121,7 +121,6 @@ with col1:
     total_premium_rate = (p_premium + u_premium + n_premium + weather_premium_rate) / 100
 
     st.markdown("**6. 운송 실비 및 현장 기타 비용 (원)**")
-    # 경유지 추가금을 반영하기 위해 5열(c7 ~ c11) 레이아웃으로 변경
     c7, c8, c9, c10, c11 = st.columns(5)
     with c7: toll = st.number_input("통행료", min_value=0, value=0, step=1000)
     with c8: load = st.number_input("상/하차비", min_value=0, value=0, step=1000)
@@ -133,14 +132,15 @@ with col1:
     st.markdown("**7. 주선 마진 정책 설정**")
     m_method = st.radio("마진 산정 방식", ["정률 마진 (%)", "정액 마진 (원)"], horizontal=True, label_visibility="collapsed")
     if m_method == "정률 마진 (%)":
-        margin_rate = st.number_input("목표 마진 요율 (%)", min_value=0.0, max_value=50.0, value=20.0, step=0.5)
+        # [핵심 변경 사항] 운송 형태에 따라 기본 마진 요율 자동 연동 설정 (상온 20%, 냉장/동 15%)
+        default_margin = 15.0 if temp_type == "냉장 / 동" else 20.0
+        margin_rate = st.number_input("목표 마진 요율 (%)", min_value=0.0, max_value=50.0, value=default_margin, step=0.5)
     else:
         margin_flat = st.number_input("고정 마진 금액 (원)", min_value=0, value=30000, step=5000)
 
 with col2:
     st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>💰 최종 운임 산출 결과</h3>", unsafe_allow_html=True)
     
-    # [기사 고정 순산 계산 로직]
     driver_premium = base_driver_fare * total_premium_rate
     driver_return = base_driver_fare * return_rate
     pure_driver_fee = base_driver_fare + driver_premium + driver_return
@@ -178,4 +178,4 @@ with col2:
     if multi_stop > 0:
         st.write(f"• **경유지 추가 비용 (실비 청구):** {multi_stop:,.0f} 원")
     st.write(f"• **실비 청구금액 합계 (마진 제외):** {actual_expenses:,.0f} 원")
-    st.caption("※ 기사 지급금액(원가)을 픽스한 상태에서, 마진 변경 시 화주 청구 총액이 변동하는 사장님 엑셀 단가표 로직이 완벽하게 연동되었습니다.")
+    st.caption(f"※ 운송 형태 연동 완료: 현재 **{temp_type}** 조건에 따라 기본 마진율 **{default_margin}%** 가 자동으로 세팅되었습니다.")
