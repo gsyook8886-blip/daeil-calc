@@ -1,25 +1,25 @@
 import streamlit as st
 
-# 1. 페이지 레이아웃 및 스타일 설정
+# 1. 페이지 레이아웃 및 직전 최종 디자인 CSS 복원
 st.set_page_config(page_title="(주)대일물류 화물 운임 산출 시스템", layout="wide")
 
-# 가독성을 극대화한 커스텀 CSS 적용
 st.markdown("""
     <style>
-    .main-title { font-size: 28px; font-weight: bold; color: #1E3A8A; margin-bottom: 5px; }
+    .main-title { font-size: 30px; font-weight: bold; color: #1E3A8A; margin-bottom: 5px; }
     .sub-title { font-size: 14px; color: #6B7280; margin-bottom: 25px; }
-    .metric-container { background-color: #F3F4F6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #1E3A8A; }
-    .metric-label { font-size: 13px; color: #4B5563; font-weight: 500; }
-    .metric-value { font-size: 24px; font-weight: bold; color: #111827; }
+    .metric-container { background-color: #F8FAFC; padding: 20px; border-radius: 12px; margin-bottom: 15px; border-left: 6px solid #1E3A8A; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .metric-label { font-size: 14px; color: #475569; font-weight: 600; margin-bottom: 8px; }
+    .metric-value { font-size: 28px; font-weight: bold; color: #0F172A; }
     .highlight-value { color: #2563EB; }
-    .margin-value { color: #059669; }
+    .margin-value { color: #16A34A; }
+    .section-title { font-size: 18px; font-weight: bold; color: #334155; margin-top: 10px; margin-bottom: 15px; }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🚚 (주)대일물류 화물 운임 산출 시스템</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">정산 규칙 설정 및 실시간 마진 컨트롤러 버전</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">최종 디자인 및 옵션 패널 통합 버전 (기사고정 순산 방식 기본)</div>', unsafe_allow_html=True)
 
-# 보안 비밀번호 확인
+# 보안 비밀번호 확인 (8886)
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -60,113 +60,120 @@ REGION_COMPENSATION = {
     "10% 지역 (태백, 정선, 평창, 인제, 양구, 화천, 고성, 완도, 진도, 신안, 봉화, 영양, 청송, 울진)": 0.10,
 }
 
-# 3. 2단 레이아웃 분할
+# 3. 좌우 분할 구조 (10월 30일 최종 스타일 배치)
 col_l, col_r = st.columns([1.1, 0.9], gap="large")
 
 with col_l:
-    # ⚙️ 글로벌 환경 설정 섹션 (할증률 및 마진 수동 설정)
-    st.markdown("### ⚙️ 시스템 마진 및 요율 설정")
-    cfg_col1, cfg_col2, cfg_col3 = st.columns(3)
-    with cfg_col1:
-        reg_margin = st.number_input("기본 마진율 (%)", min_value=0, max_value=100, value=20, step=1)
-    with cfg_col2:
-        reg_ref_rate = st.number_input("냉장/동 가산 요율 (배)", min_value=1.00, max_value=3.00, value=1.55, step=0.05)
-    with cfg_col3:
-        reg_weather_rate = st.number_input("기상 할증 요율 (%)", min_value=0, max_value=100, value=20, step=5)
+    st.markdown('<div class="section-title">📋 기본 정보 및 특수 조건 등록</div>', unsafe_allow_html=True)
     
-    st.write("---")
-    
-    st.markdown("### 📋 화물 운송 조건 입력")
-    
-    # 연산 방식 선택 라디오 버튼 (기사 고정 방식 index=1로 기본값 세팅)
+    # 상단 정산 모드 선택 (기사 고정이 기본값)
     calc_mode = st.radio(
-        "⚖️ 연산 방식 선택",
-        ["화주 고정 방식 (청구 총액 기준 역산)", "기사 고정 방식 (기사 원가 기준 순산)"],
-        index=1,
+        "⚖️ 정산 연산 방식 선택",
+        ["기사 고정 방식 (기사료 기준 ➡️ 마진율 변경 시 화주금액 변동)", "화주 고정 방식 (화주금액 기준 ➡️ 마진율 변경 시 기사료 변동)"],
+        index=0,  # 기사 고정 방식을 기본값으로 세팅
         horizontal=True
     )
     
-    # 2열 조건 입력 구조
-    sub_col1, sub_col2 = st.columns(2)
-    with sub_col1:
-        tonnage = st.selectbox("차량 톤수", list(TON_PARAMS.keys()))
-        distance = st.number_input("운송 거리 (km)", min_value=0.0, value=50.0, step=1.0)
+    st.write("")
     
-    with sub_col2:
-        region = st.selectbox("도착지 (공차 보정)", list(REGION_COMPENSATION.keys()))
-        actual_cost = st.number_input("기타 실비 (톨비/대기료 등)", min_value=0, value=0, step=1000)
+    # 이전 최종본의 입력창 분할 구조
+    in_col1, in_col2 = st.columns(2)
+    with in_col1:
+        tonnage = st.selectbox("🚛 차량 톤수", list(TON_PARAMS.keys()))
+        distance = st.number_input("📍 운송 거리 (km)", min_value=0.0, value=50.0, step=1.0)
+        margin_rate = st.slider("📈 설정 마진율 (%)", min_value=0, max_value=100, value=20, step=1)
         
-        st.write("**추가 할증 활성화**")
-        is_refrigerated = st.checkbox("냉장/동 가산 적용")
-        is_bad_weather = st.checkbox("기상 악화 (비/눈) 적용")
+    with in_col2:
+        region = st.selectbox("🗺️ 도착지 (공차 보정율 자동 매칭)", list(REGION_COMPENSATION.keys()))
+        actual_cost = st.number_input("💵 기타 실비 (통행료/대기료 등 직접 입력)", min_value=0, value=0, step=1000)
+        
+        st.markdown("**🛠️ 할증/옵션 추가 등록**")
+        is_refrigerated = st.checkbox("❄️ 냉장/동 차량 선택 (상온의 1.55배 가산)")
+        is_bad_weather = st.checkbox("🌧️ 기상 악화 할증 적용 (비/눈 발생시 +20% 가산)")
 
-# 4. 연산 엔진 부분 (등록한 요율 연동)
+# 4. 연산 엔진 (인수인계 규칙 적용)
 params = TON_PARAMS[tonnage]
 fixed_fee = params["fixed"]
 cost_a = params["cost_a"]
 cost_b = params["cost_b"]
 
-# 거리별 기본 요금
+# 거리별 운임 계산
 if distance <= 100:
     base_fee = fixed_fee + (distance * cost_a)
 else:
     base_fee = fixed_fee + (100 * cost_a) + ((distance - 100) * cost_b)
     
-# 화면에서 수동 등록한 냉장/동 요율 반영
+# 냉장/냉동 옵션 가산
 if is_refrigerated:
-    base_fee *= reg_ref_rate
+    base_fee *= 1.55
     
-# 화면에서 수동 등록한 기상 할증 요율 및 지역 보정율 반영
+# 공차 보정 및 기상 할증 요율 계산
 comp_rate = REGION_COMPENSATION[region]
-weather_rate = (reg_weather_rate / 100.0) if is_bad_weather else 0.00
+weather_rate = 0.20 if is_bad_weather else 0.00
 extra_fee = base_fee * (comp_rate + weather_rate)
 
-# 실비 제외 순수 총 운임
+# 실비를 제외한 순수 요율 운임 합계
 pure_total_fee = base_fee + extra_fee
-margin_pct = reg_margin / 100.0
+margin_pct = margin_rate / 100.0
 
-# 모드별 수식 분기
-if "화주 고정" in calc_mode:
-    shipper_pure = pure_total_fee
-    shipper_total = shipper_pure + actual_cost
-    driver_pure = shipper_pure * (1 - margin_pct)
-    driver_total = driver_pure + actual_cost
-    margin_amount = shipper_pure - driver_pure
-else:
+# 5. 핵심: 사장님 요청에 따른 모드별 운임 산출 흐름 분기
+if "기사 고정" in calc_mode:
+    # [기사 고정 방식 - 엑셀 스타일] 
+    # 연산 요율 합계가 기사님의 확정 순수 운임(원가)이 됩니다.
     driver_pure = pure_total_fee
     driver_total = driver_pure + actual_cost
+    
+    # 마진율을 올리면 기사료는 가만히 있고 화주 청구금액이 위로 올라갑니다.
     if margin_pct < 1.0:
         shipper_pure = driver_pure / (1 - margin_pct)
     else:
         shipper_pure = driver_pure
+        
     shipper_total = shipper_pure + actual_cost
     margin_amount = shipper_pure - driver_pure
-
-with col_r:
-    st.markdown("### 💵 실시간 정산 결과")
+else:
+    # [화주 고정 방식 - 인수인계서 원본 스타일]
+    # 연산 요율 합계가 화주의 확정 순수 청구액이 됩니다.
+    shipper_pure = pure_total_fee
+    shipper_total = shipper_pure + actual_cost
     
-    # 커스텀 카드형 메트릭 박스 출력
+    # 마진율을 올리면 화주 금액은 가만히 있고 기사료가 깎여 내려갑니다.
+    driver_pure = shipper_pure * (1 - margin_pct)
+    driver_total = driver_pure + actual_cost
+    margin_amount = shipper_pure - driver_pure
+
+# 오른쪽 결과 대시보드 화면 출력 (최종 디자인 스타일)
+with col_r:
+    st.markdown('<div class="section-title">💵 실시간 정산 결과 대시보드</div>', unsafe_allow_html=True)
+    
+    # 가독성 높은 3단 카드 레이아웃
     st.markdown(f"""
         <div class="metric-container" style="border-left-color: #2563EB;">
             <div class="metric-label">💰 최종 화주 청구 총액 (실비 포함)</div>
             <div class="metric-value highlight-value">{int(shipper_total):,} 원</div>
         </div>
-        <div class="metric-container" style="border-left-color: #4B5563;">
+        <div class="metric-container" style="border-left-color: #475569;">
             <div class="metric-label">👨‍✈️ 최종 차주 지급 운임 (실비 포함)</div>
             <div class="metric-value">{int(driver_total):,} 원</div>
         </div>
-        <div class="metric-container" style="border-left-color: #059669;">
-            <div class="metric-label">📈 대일물류 확보 마진 ({reg_margin}%)</div>
+        <div class="metric-container" style="border-left-color: #16A34A;">
+            <div class="metric-label">📈 대일물류 확보 마진액 ({margin_rate}%)</div>
             <div class="metric-value margin-value">{int(margin_amount):,} 원</div>
         </div>
     """, unsafe_allow_html=True)
     
-    # 상세 요율 내역 투명 노출
+    # 하단 명세서 노출
     with st.expander("🔍 상세 요율 구성 내역", expanded=True):
-        st.write(f"• **톤수별 기본 고정료 (Fixed):** {fixed_fee:,} 원")
-        st.write(f"• **거리 정산 운임 (기본):** {int(base_fee / reg_ref_rate if is_refrigerated else base_fee):,} 원")
+        st.write(f"• **선택 톤수 기본 요금 (Fixed):** {fixed_fee:,} 원")
+        st.write(f"• **거리 정산 운임 (상온 기준):** {int(base_fee / 1.55 if is_refrigerated else base_fee):,} 원")
         if is_refrigerated:
-            st.write(f"• **냉장/동 가산 적용액 ({reg_ref_rate}배):** {int(base_fee):,} 원")
-        st.write(f"• **공차 보정 ({int(comp_rate*100)}%) + 기상 할증 ({int(weather_rate*100)}%):** {int(extra_fee):,} 원")
-        st.write(f"• **증빙 청구 실비:** {actual_cost:,} 원")
-        st.info(f"💡 현재 시스템은 **기사 고정 방식**을 기본 운용 모드로 켜고 있습니다.")
+            st.write(f"• **냉장/동 가산 적용액 (+55%):** {int(base_fee):,} 원")
+        st.write(f"• **귀로 공차 보정액 ({int(comp_rate*100)}%):** {int(base_fee * comp_rate):,} 원")
+        st.write(f"• **기상 악화 할증액 ({int(weather_rate*100)}%):** {int(base_fee * weather_rate):,} 원")
+        st.write(f"• **직접 입력 실비 (마진 미적용):** {actual_cost:,} 원")
+        
+        st.write("---")
+        if "기사 고정" in calc_mode:
+            st.caption("💡 현재 **기사 고정 모드**입니다. 마진율 슬라이더를 움직이면 **화주 청구 총액**이 실시간으로 계산되어 변동합니다.")
+        else:
+            st.caption("💡 현재 **화주 고정 모드**입니다. 마진율 슬라이더를 움직이면 화주 금액은 유지되고 **차주 지급 운임**이 변동합니다.")
