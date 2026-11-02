@@ -44,7 +44,7 @@ destination_margin_rates = {
 # ------------------------------------------------------------------
 # 🔓 3단계: 매개변수 매트릭스 기반 정밀 단가 산출 엔진
 # ------------------------------------------------------------------
-def get_base_shipper_fare(temp_type, truck_size, km):
+def get_base_driver_fare(temp_type, truck_size, km):
     param_table = {
         "1톤": {"fixed": 40000, "cost_a": 800, "cost_b": 300},
         "1.4톤": {"fixed": 47000, "cost_a": 800, "cost_b": 300},
@@ -94,8 +94,9 @@ with col1:
     st.markdown("**2. 운송 거리 설정 (km)**")
     input_distance = st.number_input("운송 거리", min_value=10, max_value=500, value=10, step=5, label_visibility="collapsed")
     
-    base_shipper_fare = get_base_shipper_fare(temp_type, selected_truck, input_distance)
-    st.info(f"🎯 기본 청구가 자동 추출 완료: {base_shipper_fare:,.0f} 원")
+    # 순산 방식 적용: 추출 금액이 기사의 기본 운임료가 됨
+    base_driver_fare = get_base_driver_fare(temp_type, selected_truck, input_distance)
+    st.info(f"🎯 기사 기본 지급가 자동 추출 완료: {base_driver_fare:,.0f} 원")
 
     st.markdown("**3. 하차 지역 선택 (귀로 공차 보정 자동 매칭)**")
     end_region_detail = st.selectbox("하차 지역 선택", list(destination_margin_rates.keys()), index=1, label_visibility="collapsed")
@@ -138,20 +139,33 @@ with col1:
 with col2:
     st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>💰 최종 운임 산출 결과</h3>", unsafe_allow_html=True)
     
-    shipper_premium = base_shipper_fare * total_premium_rate
-    shipper_return = base_shipper_fare * return_rate
-    final_shipper_fee = base_shipper_fare + shipper_premium + shipper_return + actual_expenses
+    # [수정 로직의 핵심 - 기사 고정 순산 계산법]
+    # 1. 할증액 및 공차보정액 산출 (기사 기본료 기준)
+    driver_premium = base_driver_fare * total_premium_rate
+    driver_return = base_driver_fare * return_rate
     
+    # 2. 마진 적용 대상이 되는 기사의 '순수 운임 합계' 확정
+    pure_driver_fee = base_driver_fare + driver_premium + driver_return
+    
+    # 3. 마진 정책에 따른 화주 청구 순수 운임 및 회사 수익 계산
     if m_method == "정률 마진 (%)":
-        final_driver_fee = final_shipper_fee * (1 - (margin_rate / 100))
-        company_margin = final_shipper_fee - final_driver_fee
+        margin_pct = margin_rate / 100.0
+        if margin_pct < 1.0:
+            pure_shipper_fee = pure_driver_fee / (1 - margin_pct)
+        else:
+            pure_shipper_fee = pure_driver_fee
+        company_margin = pure_shipper_fee - pure_driver_fee
         final_margin_percent = margin_rate
     else:
         company_margin = margin_flat
-        final_driver_fee = final_shipper_fee - company_margin
-        final_margin_percent = (company_margin / final_shipper_fee * 100) if final_shipper_fee > 0 else 0
+        pure_shipper_fee = pure_driver_fee + company_margin
+        final_margin_percent = (company_margin / pure_shipper_fee * 100) if pure_shipper_fee > 0 else 0
 
-    # 순정 위젯 카드 스코어보드
+    # 4. 실비(actual_expenses)는 마진 계산에서 제외한 후, 양측에 최종 1:1 합산
+    final_driver_fee = pure_driver_fee + actual_expenses
+    final_shipper_fee = pure_shipper_fee + actual_expenses
+
+    # 순정 위젯 카드 스코어보드 (화주 청구액 상단 전면 배치)
     with st.container(border=True):
         st.metric(label="💵 화주 최종 청구 금액 (최종 청구가)", value=f"{int(round(final_shipper_fee)):,.0f} 원")
     
@@ -160,14 +174,11 @@ with col2:
         
     st.success(f"📈 주선 수익 마진 : {int(round(company_margin)):,.0f} 원 ({final_margin_percent:.1f}%)")
     
-    # [정밀 복구 완료] 상세 가독성 리포트 패널 마감처리
+    # 상세 가독성 리포트 패널 마감처리 및 수식 투명성 공개
     st.write("---")
     st.markdown("<h5 style='color: #1E3A8A; font-weight: bold;'>📋 상세 운임 산정 항목 리포트</h5>", unsafe_allow_html=True)
-    with st.container(border=True):
-        st.write(f"• 1. 기본 청구가 (단가표 연동) : **{base_shipper_fare:,.0f} 원**")
-        st.write(f"• 2. Condition 요율 기반 할증액 : **{shipper_premium:,.0f} 원**")
-        st.write(f"• 3. 도착지 귀로 공차 보정액 : **{shipper_return:,.0f} 원**")
-        st.write(f"• 4. 상하차/통행료 등 실비 합계 : **{actual_expenses:,.0f} 원**")
-        st.write("---")
-        st.write(f"🔹 **최종 화주 청구 총액 : {final_shipper_fee:,.0f} 원**")
-        st.write(f"🔸 **최종 차주 지급 총액 : {final_driver_fee:,.0f} 원**")
+    st.write(f"• **차종별 기본 운임 ({temp_type}):** {base_driver_fare:,.0f} 원")
+    st.write(f"• **공차 보정 추가액 ({return_rate*100:.0f}%):** {int(round(driver_return)):,.0f} 원")
+    st.write(f"• **기타 옵션 할증액 ({total_premium_rate*100:.0f}%):** {int(round(driver_premium)):,.0f} 원")
+    st.write(f"• **실비 청구금액 합계 (마진 제외):** {actual_expenses:,.0f} 원")
+    st.caption("※ 기사 지급금액(원가)을 픽스한 상태에서, 마진 변경 시 화주 청구 총액이 변동하는 사장님 엑셀 단가표 로직이 완벽하게 연동되었습니다.")
