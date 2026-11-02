@@ -121,18 +121,17 @@ with col1:
     total_premium_rate = (p_premium + u_premium + n_premium + weather_premium_rate) / 100
 
     st.markdown("**6. 운송 실비 및 현장 기타 비용 (원)**")
-    c7, c8, c9, c10, c11 = st.columns(5)
-    with c7: toll = st.number_input("통행료", min_value=0, value=0, step=1000)
+    # 통행료 필드(toll) 삭제 후 깔끔하게 4열(c8 ~ c11) 레이아웃으로 변경
+    c8, c9, c10, c11 = st.columns(4)
     with c8: load = st.number_input("상/하차비", min_value=0, value=0, step=1000)
     with c9: wait = st.number_input("대기료", min_value=0, value=0, step=1000)
     with c10: multi_stop = st.number_input("경유지 추가금", min_value=0, value=0, step=1000)
     with c11: etc = st.number_input("기타 정산비", min_value=0, value=0, step=1000)
-    actual_expenses = toll + load + wait + multi_stop + etc
+    actual_expenses = load + wait + multi_stop + etc
 
     st.markdown("**7. 주선 마진 정책 설정**")
     m_method = st.radio("마진 산정 방식", ["정률 마진 (%)", "정액 마진 (원)"], horizontal=True, label_visibility="collapsed")
     if m_method == "정률 마진 (%)":
-        # [핵심 변경 사항] 운송 형태에 따라 기본 마진 요율 자동 연동 설정 (상온 20%, 냉장/동 15%)
         default_margin = 15.0 if temp_type == "냉장 / 동" else 20.0
         margin_rate = st.number_input("목표 마진 요율 (%)", min_value=0.0, max_value=50.0, value=default_margin, step=0.5)
     else:
