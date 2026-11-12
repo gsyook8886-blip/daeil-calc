@@ -176,13 +176,14 @@ with col1:
 with col2:
     st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>💰 최종 운임 산출 결과</h3>", unsafe_allow_html=True)
     
-    # 1. 할증액 및 공차보정액 산출 (고정된 차주 기본 지급가 기준)
-    driver_premium = base_driver_fare * total_premium_rate
-    driver_return = base_driver_fare * return_rate
-    
-    # 2. 마진 변경 시에도 고정되는 순수 차주 운임 확정
-    pure_driver_fee = base_driver_fare + driver_premium + driver_return
-    
-    # 3. 엑셀 단가표 방식: 차주 운임에 마진율(%)을 곱해 가산한 후 엑셀식 사사오입 천원 단위 반올림
-    if m_method == "정률 마진 (%)":
-        raw_shipper_fee = pure_driver_fee * (1 + (margin_rate / 100.0))
+    try:
+        # 1. 할증액 및 공차보정액 산출 (고정된 차주 기본 지급가 기준)
+        driver_premium = base_driver_fare * total_premium_rate
+        driver_return = base_driver_fare * return_rate
+        
+        # 2. 마진 변경 시에도 고정되는 순수 차주 운임 확정
+        pure_driver_fee = base_driver_fare + driver_premium + driver_return
+        
+        # 3. 엑셀 단가표 방식: 차주 운임에 마진율(%)을 곱해 가산한 후 엑셀식 사사오입 천원 단위 반올림
+        if m_method == "정률 마진 (%)":
+            raw_shipper_fee = pure_driver_fee * (1 + (margin_rate / 100.0))
