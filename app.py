@@ -4,7 +4,8 @@ from decimal import Decimal, ROUND_HALF_UP
 st.set_page_config(page_title="(주)대일물류 화물 운임 산출 시스템", layout="wide")
 
 def excel_round_1000(val):
-    return int(Decimal(str(val / 1000.0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)) * 1000
+    exact_val = Decimal(str(round(val, 2)))
+    return int((exact_val / Decimal("1000")).quantize(Decimal("1"), rounding=ROUND_HALF_UP)) * 1000
 
 # 1. 하차지 공차 보정률 데이터베이스
 destination_margin_rates = {
