@@ -6,30 +6,7 @@ st.set_page_config(page_title="(주)대일물류 화물 운임 산출 시스템"
 def excel_round_1000(val):
     return int(Decimal(str(val / 1000.0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)) * 1000
 
-# 1단계: 보안 비밀번호 세션 관리 (기존 암호 8886 유지)
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
-
-def check_password():
-    if st.session_state["password_input"] == "8886":
-        st.session_state["authenticated"] = True
-        st.session_state["password_error"] = False
-    else:
-        st.session_state["authenticated"] = True
-        st.session_state["password_error"] = False
-
-if not st.session_state["authenticated"]:
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔒 (주)대일물류 화물 운임 산출 시스템</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #6B7280;'>본 시스템은 인증된 임직원만 접근 가능합니다.</p>", unsafe_allow_html=True)
-    col_l, col_m, col_r = st.columns(3)
-    with col_m:
-        st.text_input("접속 비밀번호 입력", type="password", key="password_input", on_change=check_password)
-        if st.session_state.get("password_error"):
-            st.error("❌ 비밀번호가 올바르지 않습니다.")
-    st.stop()
-
-# 2단계: 하차지 공차 보정률 데이터베이스
+# 1. 하차지 공차 보정률 데이터베이스
 destination_margin_rates = {
     "서울": 0.00, "인천": 0.00, "부천": 0.00,
     "경기 안산·시흥·화성·평택·용인·이천·안성": 0.00, "부산": 0.00, "울산": 0.00,
@@ -39,7 +16,7 @@ destination_margin_rates = {
     "강원 태백·정선·평창·인제·양구·화천·고성": 0.10, "전남 완도·진도·신안": 0.10, "경북 봉화·영양·청송·울진": 0.10
 }
 
-# 3단계: 상온/냉장·동 단가표(10~500km) 산출 엔진
+# 2. 상온/냉장·동 단가표(10~500km) 산출 엔진
 def get_base_driver_fare(temp_type, truck_size, km):
     snapped_km = max(10, int(round(km / 5.0) * 5))
     
@@ -95,13 +72,15 @@ def get_base_driver_fare(temp_type, truck_size, km):
             fare += (seg_km // 5) * r.__getitem__(i + 1)
     return int(round(fare / 100.0) * 100)
 
-# 상단 헤더바
-st.markdown("<div style='background-color: #1E3A8A; padding: 15px; border-radius: 8px; margin-bottom: 25px;'><h1 style='color: white; margin: 0; font-size: 24px;'>📊 (주)대일물류 화물 운임 산출 시스템</h1></div>", unsafe_allow_html=True)
+# 상단 타이틀
+st.title("📊 (주)대일물류 화물 운임 산출 시스템")
+st.divider()
 
+# 좌우 화면 분할
 col1, col2 = st.columns((1.1, 1))
 
 with col1:
-    st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>📋 배차 요건 입력</h3>", unsafe_allow_html=True)
+    st.subheader("📋 배차 요건 입력")
     
     st.markdown("**1. 운송 형태 및 차종(톤수) 설정**")
     c_type1, c_type2 = st.columns(2)
@@ -129,7 +108,7 @@ with col1:
     weather_option = st.radio("날씨 상태", ("☀️ 기상 양호", "🌧️ 비 / 소나기 (+20%)", "❄️ 눈 / 진눈깨비 (+20%)"), horizontal=True, label_visibility="collapsed")
     if "비" in weather_option or "눈" in weather_option:
         weather_premium_rate = 20
-        st.warning("⛈️ [기상 할증 발동] 윙바디 수급 제한 할증률 +20%가 계산기에 반영되었습니다.")
+        st.warning("⛈️ [기상 할증 발동] 윙바디 수급 제한 할증률 +20%가 반영되었습니다.")
 
     st.markdown("**5. 기타 운송조건 추가 할증 (%)**")
     c3, c4, c5 = st.columns(3)
@@ -162,7 +141,7 @@ with col1:
         margin_flat = st.number_input("고정 마진 금액 (원)", min_value=0, value=10000, step=5000)
 
 with col2:
-    st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>💰 최종 운임 산출 결과</h3>", unsafe_allow_html=True)
+    st.subheader("💰 최종 운임 산출 결과")
     
     driver_premium = base_driver_fare * total_premium_rate
     driver_return = base_driver_fare * return_rate
@@ -181,3 +160,20 @@ with col2:
     final_driver_fee = pure_driver_fee + actual_expenses
     final_shipper_fee = pure_shipper_fee + actual_expenses
 
+    st.metric(label="💵 화주 최종 청구 금액 (최종 청구가)", value=f"{int(round(final_shipper_fee)):,.0f} 원")
+    st.metric(label="🚛 차주 배차 지급 금액 (최종 지급가)", value=f"{int(round(final_driver_fee)):,.0f} 원")
+    st.success(f"📈 주선 수익 마진 : {int(round(company_margin)):,.0f} 원 (가산율 {final_margin_percent:.1f}%)")
+    
+    st.divider()
+    st.subheader("📋 상세 운임 산정 항목 리포트")
+    st.write(f"• **차종별 기본 운임 ({temp_type}):** {base_driver_fare:,.0f} 원")
+    st.write(f"• **공차 보정 추가액 ({return_rate*100:.0f}%):** {int(round(driver_return)):,.0f} 원")
+    st.write(f"• **기타 옵션 할증액 ({total_premium_rate*100:.0f}%):** {int(round(driver_premium)):,.0f} 원")
+    if multi_stop > 0:
+        st.write(f"• **경유지 추가 비용 (실비 청구):** {multi_stop:,.0f} 원")
+    st.write(f"• **실비 청구금액 합계 (마진 제외):** {actual_expenses:,.0f} 원")
+    
+    if m_method == "정률 마진 (%)":
+        st.caption(f"※ 엑셀 단가표 가산 방식: 차주 지급가({int(round(pure_driver_fee)):,}원)에 마진 {margin_rate}% 가산 후 천원 단위 반올림 적용")
+    else:
+        st.caption(f"※ 정액 마진 적용: 차주 지급가({int(round(pure_driver_fee)):,}원)에 고정 마진 {margin_flat:,.0f} 원 가산")
