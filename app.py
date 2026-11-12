@@ -1,16 +1,12 @@
 import streamlit as st
 from decimal import Decimal, ROUND_HALF_UP
 
-# 페이지 설정 (공식 타이틀 및 넓은 화면 테마 정립)
 st.set_page_config(page_title="(주)대일물류 화물 운임 산출 시스템", layout="wide")
 
-# 엑셀과 동일한 사사오입(500원 이상 올림) 천원 단위 반올림 함수
 def excel_round_1000(val):
-    return int(Decimal(str(val / 1000.0)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)) * 1000
+    return int(Decimal(str(val / 1000.0)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)) * 1000
 
-# ------------------------------------------------------------------
-# 🔒 1단계: 보안 비밀번호 세션 관리 (기존 암호 8886 유지)
-# ------------------------------------------------------------------
+# 1단계: 보안 비밀번호 세션 관리 (기존 암호 8886 유지)
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -26,7 +22,6 @@ if not st.session_state["authenticated"]:
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🔒 (주)대일물류 화물 운임 산출 시스템</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #6B7280;'>본 시스템은 인증된 임직원만 접근 가능합니다.</p>", unsafe_allow_html=True)
-    
     col_l, col_m, col_r = st.columns(3)
     with col_m:
         st.text_input("접속 비밀번호 입력", type="password", key="password_input", on_change=check_password)
@@ -34,9 +29,7 @@ if not st.session_state["authenticated"]:
             st.error("❌ 비밀번호가 올바르지 않습니다.")
     st.stop()
 
-# ------------------------------------------------------------------
-# 🗺️ 2단계: 하차지 공차 보정률 데이터베이스
-# ------------------------------------------------------------------
+# 2단계: 하차지 공차 보정률 데이터베이스
 destination_margin_rates = {
     "서울": 0.00, "인천": 0.00, "부천": 0.00,
     "경기 안산·시흥·화성·평택·용인·이천·안성": 0.00, "부산": 0.00, "울산": 0.00,
@@ -46,13 +39,10 @@ destination_margin_rates = {
     "강원 태백·정선·평창·인제·양구·화천·고성": 0.10, "전남 완도·진도·신안": 0.10, "경북 봉화·영양·청송·울진": 0.10
 }
 
-# ------------------------------------------------------------------
-# 🔓 3단계: 상온/냉장·동 단가표(10~500km) 완벽 일치 산출 엔진
-# ------------------------------------------------------------------
+# 3단계: 상온/냉장·동 단가표(10~500km) 산출 엔진
 def get_base_driver_fare(temp_type, truck_size, km):
     snapped_km = max(10, int(round(km / 5.0) * 5))
     
-    # 1. 냉장 / 동 단가표 구간별 증분 공식 (10~450km 100% 일치)
     if temp_type == "냉장 / 동":
         frozen_rules = {
             "1톤":   (76000,  4000, 3000, 2000, 1800, 2500, 2000, 2000, 2500, 3000),
@@ -76,7 +66,6 @@ def get_base_driver_fare(temp_type, truck_size, km):
                 fare += (seg_km // 5) * r.__getitem__(i)
         return int(round(fare))
 
-    # 2. 일반 상온 단가표 구간별 증분 공식 (10~500km 100% 일치)
     ambient_rules = {
         "1톤":        (48000,  50000,  4500, 4000, 4000, 2000, 1500, 2500, 2000, 2000, 2500, 3000),
         "1.4톤":      (55000,  60000,  4500, 4000, 4000, 2000, 1500, 3000, 2500, 2000, 3000, 3000),
@@ -106,10 +95,9 @@ def get_base_driver_fare(temp_type, truck_size, km):
             fare += (seg_km // 5) * r.__getitem__(i + 1)
     return int(round(fare / 100.0) * 100)
 
-# 메인 상단 헤더바 공식 명칭 부여
+# 상단 헤더바
 st.markdown("<div style='background-color: #1E3A8A; padding: 15px; border-radius: 8px; margin-bottom: 25px;'><h1 style='color: white; margin: 0; font-size: 24px;'>📊 (주)대일물류 화물 운임 산출 시스템</h1></div>", unsafe_allow_html=True)
 
-# 화면 레이아웃 분할
 col1, col2 = st.columns((1.1, 1))
 
 with col1:
@@ -128,8 +116,6 @@ with col1:
 
     st.markdown("**2. 운송 거리 설정 (km)**")
     input_distance = st.number_input("운송 거리", min_value=10, max_value=500, value=15, step=5, label_visibility="collapsed")
-    
-    # 단가표 금액이 곧 차주 기본 지급가(원가)
     base_driver_fare = get_base_driver_fare(temp_type, selected_truck, input_distance)
     st.info(f"🎯 차주 기본 지급가(원가) 자동 추출 완료: {base_driver_fare:,.0f} 원")
 
@@ -140,34 +126,36 @@ with col1:
 
     st.markdown("**4. 실시간 기상 특보 설정**")
     weather_premium_rate = 0
-    weather_option = st.radio(
-        "날씨 상태",
-        ("☀️ 기상 양호", "🌧️ 비 / 소나기 (+20%)", "❄️ 눈 / 진눈깨비 (+20%)"),
-        horizontal=True, label_visibility="collapsed"
-    )
+    weather_option = st.radio("날씨 상태", ("☀️ 기상 양호", "🌧️ 비 / 소나기 (+20%)", "❄️ 눈 / 진눈깨비 (+20%)"), horizontal=True, label_visibility="collapsed")
     if "비" in weather_option or "눈" in weather_option:
         weather_premium_rate = 20
         st.warning("⛈️ [기상 할증 발동] 윙바디 수급 제한 할증률 +20%가 계산기에 반영되었습니다.")
 
     st.markdown("**5. 기타 운송조건 추가 할증 (%)**")
     c3, c4, c5 = st.columns(3)
-    with c3: p_premium = st.number_input("성수기 할증 (%)", min_value=0, value=0, step=5)
-    with c4: u_premium = st.number_input("긴급 할증 (%)", min_value=0, value=0, step=5)
-    with c5: n_premium = st.number_input("야간 할증 (%)", min_value=0, value=0, step=5)
+    with c3:
+        p_premium = st.number_input("성수기 할증 (%)", min_value=0, value=0, step=5)
+    with c4:
+        u_premium = st.number_input("긴급 할증 (%)", min_value=0, value=0, step=5)
+    with c5:
+        n_premium = st.number_input("야간 할증 (%)", min_value=0, value=0, step=5)
     total_premium_rate = (p_premium + u_premium + n_premium + weather_premium_rate) / 100
 
     st.markdown("**6. 운송 실비 및 현장 기타 비용 (원)**")
     c8, c9, c10, c11 = st.columns(4)
-    with c8: load = st.number_input("상/하차비", min_value=0, value=0, step=1000)
-    with c9: wait = st.number_input("대기료", min_value=0, value=0, step=1000)
-    with c10: multi_stop = st.number_input("경유지 추가금", min_value=0, value=0, step=1000)
-    with c11: etc = st.number_input("기타 정산비", min_value=0, value=0, step=1000)
+    with c8:
+        load = st.number_input("상/하차비", min_value=0, value=0, step=1000)
+    with c9:
+        wait = st.number_input("대기료", min_value=0, value=0, step=1000)
+    with c10:
+        multi_stop = st.number_input("경유지 추가금", min_value=0, value=0, step=1000)
+    with c11:
+        etc = st.number_input("기타 정산비", min_value=0, value=0, step=1000)
     actual_expenses = load + wait + multi_stop + etc
 
     st.markdown("**7. 주선 마진 정책 설정 (조정 시 화주 청구액 변동)**")
     m_method = st.radio("마진 산정 방식", ("정률 마진 (%)", "정액 마진 (원)"), horizontal=True, label_visibility="collapsed")
     default_margin = 10.0 if temp_type == "냉장 / 동" else 13.0
-    
     if m_method == "정률 마진 (%)":
         margin_rate = st.number_input("목표 마진 요율 (%)", min_value=0.0, max_value=100.0, value=default_margin, step=0.5)
     else:
@@ -176,14 +164,20 @@ with col1:
 with col2:
     st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>💰 최종 운임 산출 결과</h3>", unsafe_allow_html=True)
     
-    try:
-        # 1. 할증액 및 공차보정액 산출 (고정된 차주 기본 지급가 기준)
-        driver_premium = base_driver_fare * total_premium_rate
-        driver_return = base_driver_fare * return_rate
-        
-        # 2. 마진 변경 시에도 고정되는 순수 차주 운임 확정
-        pure_driver_fee = base_driver_fare + driver_premium + driver_return
-        
-        # 3. 엑셀 단가표 방식: 차주 운임에 마진율(%)을 곱해 가산한 후 엑셀식 사사오입 천원 단위 반올림
-        if m_method == "정률 마진 (%)":
-            raw_shipper_fee = pure_driver_fee * (1 + (margin_rate / 100.0))
+    driver_premium = base_driver_fare * total_premium_rate
+    driver_return = base_driver_fare * return_rate
+    pure_driver_fee = base_driver_fare + driver_premium + driver_return
+    
+    if m_method == "정률 마진 (%)":
+        raw_shipper_fee = pure_driver_fee * (1 + (margin_rate / 100.0))
+        pure_shipper_fee = excel_round_1000(raw_shipper_fee)
+        company_margin = pure_shipper_fee - pure_driver_fee
+        final_margin_percent = margin_rate
+    else:
+        company_margin = margin_flat
+        pure_shipper_fee = pure_driver_fee + company_margin
+        final_margin_percent = (company_margin / pure_driver_fee * 100) if pure_driver_fee > 0 else 0
+
+    final_driver_fee = pure_driver_fee + actual_expenses
+    final_shipper_fee = pure_shipper_fee + actual_expenses
+
