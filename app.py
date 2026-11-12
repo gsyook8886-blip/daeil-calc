@@ -1,7 +1,12 @@
 import streamlit as st
+from decimal import Decimal, ROUND_HALF_UP
 
 # 페이지 설정 (공식 타이틀 및 넓은 화면 테마 정립)
 st.set_page_config(page_title="(주)대일물류 화물 운임 산출 시스템", layout="wide")
+
+# 엑셀과 동일한 사사오입(500원 이상 올림) 천원 단위 반올림 함수
+def excel_round_1000(val):
+    return int(Decimal(str(val / 1000.0)).quantize(Decimal('1'), rounding=ROUND_HALF_UP)) * 1000
 
 # ------------------------------------------------------------------
 # 🔒 1단계: 보안 비밀번호 세션 관리 (기존 암호 8886 유지)
@@ -42,12 +47,13 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🔓 3단계: 상온/냉장·동 전용 단가표 기반 차주 기본 지급가 산출 엔진
+# 🔓 3단계: 상온/냉장·동 단가표(10~500km) 완벽 일치 산출 엔진
 # ------------------------------------------------------------------
 def get_base_driver_fare(temp_type, truck_size, km):
-    # 1. 냉장 / 동 단가표 구간별 증분 공식 (단가표 10~450km 100% 일치)
+    snapped_km = max(10, int(round(km / 5.0) * 5))
+    
+    # 1. 냉장 / 동 단가표 구간별 증분 공식 (10~450km 100% 일치)
     if temp_type == "냉장 / 동":
-        # (10km기준가, 10~50km 5km당증분, 50~100km증분, 100~150km증분, 150~200km증분, 200~250km증분, 250~300km증분, 300~350km증분, 350~400km증분, 400~450km증분)
         frozen_rules = {
             "1톤":   (76000,  4000, 3000, 2000, 1800, 2500, 2000, 2000, 2500, 3000),
             "2.5톤": (88000,  6000, 4000, 2500, 2500, 3000, 2500, 2500, 2500, 2500),
@@ -60,8 +66,6 @@ def get_base_driver_fare(temp_type, truck_size, km):
             "25톤":  (226000, 9000, 9500, 4000, 7000, 7500, 8000, 6000, 7000, 7000)
         }
         r = frozen_rules.get(truck_size, frozen_rules.get("1톤"))
-        snapped_km = max(10, int(round(km / 5.0) * 5))
-        
         fare = r[0]
         bounds = (10, 50, 100, 150, 200, 250, 300, 350, 400, 500)
         for i in range(1, len(bounds)):
@@ -70,29 +74,34 @@ def get_base_driver_fare(temp_type, truck_size, km):
                 fare += (seg_km // 5) * r[i]
         return int(round(fare))
 
-    # 2. 일반 상온 매개변수 테이블
-    ambient_param_table = {
-        "1톤": {"fixed": 40000, "cost_a": 800, "cost_b": 300},
-        "1.4톤": {"fixed": 47000, "cost_a": 800, "cost_b": 300},
-        "2.5톤": {"fixed": 62000, "cost_a": 800, "cost_b": 300},
-        "3.5톤": {"fixed": 72000, "cost_a": 800, "cost_b": 300},
-        "3.5톤 광폭": {"fixed": 77000, "cost_a": 800, "cost_b": 300},
-        "5톤": {"fixed": 86500, "cost_a": 1050, "cost_b": 550},
-        "5톤 플러스": {"fixed": 90000, "cost_a": 1050, "cost_b": 550},
-        "5톤 장축": {"fixed": 95000, "cost_a": 1050, "cost_b": 550},
-        "8톤": {"fixed": 105000, "cost_a": 1200, "cost_b": 600},
-        "11톤": {"fixed": 133000, "cost_a": 1200, "cost_b": 600},
-        "11톤 장축": {"fixed": 145000, "cost_a": 1200, "cost_b": 600},
-        "14톤": {"fixed": 140000, "cost_a": 1200, "cost_b": 600},
-        "18톤": {"fixed": 150000, "cost_a": 1300, "cost_b": 650},
-        "25톤": {"fixed": 164000, "cost_a": 1600, "cost_b": 700}
+    # 2. 일반 상온 단가표 구간별 증분 공식 (10~500km 100% 일치)
+    # (10km가, 15km가, 15~35km증분, 35~50km증분, 50~100km증분, 100~150km증분, 150~200km증분, 200~250km증분, 250~300km증분, 300~350km증분, 350~400km증분, 400~500km증분)
+    ambient_rules = {
+        "1톤":        (48000,  50000,  4500, 4000, 4000, 2000, 1500, 2500, 2000, 2000, 2500, 3000),
+        "1.4톤":      (55000,  60000,  4500, 4000, 4000, 2000, 1500, 3000, 2500, 2000, 3000, 3000),
+        "2.5톤":      (70000,  76000,  6000, 5000, 4000, 2500, 2000, 3000, 2500, 2500, 2500, 2500),
+        "3.5톤":      (80000,  86000,  6000, 6000, 4000, 2000, 2700, 3000, 2500, 4000, 3500, 3500),
+        "3.5톤 광폭": (85000,  92000,  6250, 6000, 4000, 2000, 3000, 3000, 2000, 4000, 3500, 3500),
+        "5톤":        (97000,  102000, 7000, 6667, 4000, 3000, 3000, 4000, 4000, 3000, 4000, 4000),
+        "5톤 플러스": (100000, 108000, 7500, 7333, 4000, 3500, 3000, 4000, 4500, 3500, 4000, 4500),
+        "5톤 장축":   (110000, 118000, 7500, 7333, 4500, 3000, 3000, 4500, 4500, 3500, 4000, 4500),
+        "8톤":        (120000, 127000, 7000, 6333, 5600, 3000, 4000, 4000, 5000, 4500, 6000, 6000),
+        "11톤":       (145000, 152000, 6250, 6000, 6000, 3000, 4000, 5000, 5000, 5000, 5500, 5500),
+        "11톤 장축":  (160000, 168000, 7500, 7333, 7000, 2500, 6000, 5500, 5500, 5000, 7000, 7000),
+        "14톤":       (155000, 162000, 7000, 6667, 6500, 3000, 5000, 5500, 5000, 5500, 6500, 6500),
+        "18톤":       (165000, 173000, 8000, 8333, 7000, 3000, 6000, 6000, 6500, 5000, 6500, 6500),
+        "25톤":       (180000, 188000, 8000, 8333, 8500, 4000, 7000, 7500, 8000, 6000, 7000, 7000)
     }
-    p = ambient_param_table.get(truck_size, ambient_param_table.get("1톤"))
-    if km <= 100:
-        fare = p.get("fixed") + (km * p.get("cost_a"))
-    else:
-        fare = p.get("fixed") + (100 * p.get("cost_a")) + ((km - 100) * p.get("cost_b"))
-    return int(round(fare / 1000) * 1000)
+    r = ambient_rules.get(truck_size, ambient_rules.get("1톤"))
+    if snapped_km == 10:
+        return r[0]
+    fare = r[1]
+    bounds = (15, 35, 50, 100, 150, 200, 250, 300, 350, 400, 500)
+    for i in range(1, len(bounds)):
+        if snapped_km > bounds[i-1]:
+            seg_km = min(snapped_km, bounds[i]) - bounds[i-1]
+            fare += (seg_km // 5) * r[i+1]
+    return int(round(fare / 100.0) * 100)
 
 # 메인 상단 헤더바 공식 명칭 부여
 st.markdown("<div style='background-color: #1E3A8A; padding: 15px; border-radius: 8px; margin-bottom: 25px;'><h1 style='color: white; margin: 0; font-size: 24px;'>📊 (주)대일물류 화물 운임 산출 시스템</h1></div>", unsafe_allow_html=True)
@@ -115,7 +124,7 @@ with col1:
         selected_truck = st.selectbox("차종 선택", truck_list, label_visibility="collapsed")
 
     st.markdown("**2. 운송 거리 설정 (km)**")
-    input_distance = st.number_input("운송 거리", min_value=10, max_value=500, value=10, step=5, label_visibility="collapsed")
+    input_distance = st.number_input("운송 거리", min_value=10, max_value=500, value=15, step=5, label_visibility="collapsed")
     
     # 단가표 금액이 곧 차주 기본 지급가(원가)
     base_driver_fare = get_base_driver_fare(temp_type, selected_truck, input_distance)
@@ -171,25 +180,7 @@ with col2:
     # 2. 마진 변경 시에도 고정되는 순수 차주 운임 확정
     pure_driver_fee = base_driver_fare + driver_premium + driver_return
     
-    # 3. 엑셀 단가표 방식: 차주 운임에 마진율(%)을 곱해 가산한 후 천원 단위 반올림
+    # 3. 엑셀 단가표 방식: 차주 운임에 마진율(%)을 곱해 가산한 후 엑셀식 사사오입 천원 단위 반올림
     if m_method == "정률 마진 (%)":
         raw_shipper_fee = pure_driver_fee * (1 + (margin_rate / 100.0))
-        pure_shipper_fee = int(round(raw_shipper_fee / 1000) * 1000)
-        company_margin = pure_shipper_fee - pure_driver_fee
-        final_margin_percent = margin_rate
-    else:
-        company_margin = margin_flat
-        pure_shipper_fee = pure_driver_fee + company_margin
-        final_margin_percent = (company_margin / pure_driver_fee * 100) if pure_driver_fee > 0 else 0
-
-    # 4. 현장 실비는 마진 대상에서 제외 후 양측에 1:1 동일 합산
-    final_driver_fee = pure_driver_fee + actual_expenses
-    final_shipper_fee = pure_shipper_fee + actual_expenses
-
-    # 순정 위젯 카드 스코어보드
-    with st.container(border=True):
-        st.metric(label="💵 화주 최종 청구 금액 (최종 청구가)", value=f"{int(round(final_shipper_fee)):,.0f} 원")
-    
-    with st.container(border=True):
-        st.metric(label="🚛 차주 배차 지급 금액 (최종 지급가)", value=f"{int(round(final_driver_fee)):,.0f} 원")
-        
+        pure_shipper_fee = excel_round_1000(raw_shipper_fee)
