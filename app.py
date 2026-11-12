@@ -66,16 +66,17 @@ def get_base_driver_fare(temp_type, truck_size, km):
             "25톤":  (226000, 9000, 9500, 4000, 7000, 7500, 8000, 6000, 7000, 7000)
         }
         r = frozen_rules.get(truck_size, frozen_rules.get("1톤"))
-        fare = r[0]
+        fare = r.__getitem__(0)
         bounds = (10, 50, 100, 150, 200, 250, 300, 350, 400, 500)
         for i in range(1, len(bounds)):
-            if snapped_km > bounds[i-1]:
-                seg_km = min(snapped_km, bounds[i]) - bounds[i-1]
-                fare += (seg_km // 5) * r[i]
+            b_prev = bounds.__getitem__(i - 1)
+            b_curr = bounds.__getitem__(i)
+            if snapped_km > b_prev:
+                seg_km = min(snapped_km, b_curr) - b_prev
+                fare += (seg_km // 5) * r.__getitem__(i)
         return int(round(fare))
 
     # 2. 일반 상온 단가표 구간별 증분 공식 (10~500km 100% 일치)
-    # (10km가, 15km가, 15~35km증분, 35~50km증분, 50~100km증분, 100~150km증분, 150~200km증분, 200~250km증분, 250~300km증분, 300~350km증분, 350~400km증분, 400~500km증분)
     ambient_rules = {
         "1톤":        (48000,  50000,  4500, 4000, 4000, 2000, 1500, 2500, 2000, 2000, 2500, 3000),
         "1.4톤":      (55000,  60000,  4500, 4000, 4000, 2000, 1500, 3000, 2500, 2000, 3000, 3000),
@@ -94,13 +95,15 @@ def get_base_driver_fare(temp_type, truck_size, km):
     }
     r = ambient_rules.get(truck_size, ambient_rules.get("1톤"))
     if snapped_km == 10:
-        return r[0]
-    fare = r[1]
+        return r.__getitem__(0)
+    fare = r.__getitem__(1)
     bounds = (15, 35, 50, 100, 150, 200, 250, 300, 350, 400, 500)
     for i in range(1, len(bounds)):
-        if snapped_km > bounds[i-1]:
-            seg_km = min(snapped_km, bounds[i]) - bounds[i-1]
-            fare += (seg_km // 5) * r[i+1]
+        b_prev = bounds.__getitem__(i - 1)
+        b_curr = bounds.__getitem__(i)
+        if snapped_km > b_prev:
+            seg_km = min(snapped_km, b_curr) - b_prev
+            fare += (seg_km // 5) * r.__getitem__(i + 1)
     return int(round(fare / 100.0) * 100)
 
 # 메인 상단 헤더바 공식 명칭 부여
@@ -183,4 +186,3 @@ with col2:
     # 3. 엑셀 단가표 방식: 차주 운임에 마진율(%)을 곱해 가산한 후 엑셀식 사사오입 천원 단위 반올림
     if m_method == "정률 마진 (%)":
         raw_shipper_fee = pure_driver_fee * (1 + (margin_rate / 100.0))
-        pure_shipper_fee = excel_round_1000(raw_shipper_fee)
