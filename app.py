@@ -42,9 +42,9 @@ destination_margin_rates = {
 }
 
 # ------------------------------------------------------------------
-# 🔓 3단계: 매개변수 매트릭스 기반 화주 기준 단가 산출 엔진
+# 🔓 3단계: 매개변수 매트릭스 기반 차주 기본 지급가 산출 엔진
 # ------------------------------------------------------------------
-def get_base_shipper_fare(temp_type, truck_size, km):
+def get_base_driver_fare(temp_type, truck_size, km):
     param_table = {
         "1톤": {"fixed": 40000, "cost_a": 800, "cost_b": 300},
         "1.4톤": {"fixed": 47000, "cost_a": 800, "cost_b": 300},
@@ -94,13 +94,9 @@ with col1:
     st.markdown("**2. 운송 거리 설정 (km)**")
     input_distance = st.number_input("운송 거리", min_value=10, max_value=500, value=10, step=5, label_visibility="collapsed")
     
-    # 단가표에서 화주 기준 단가 추출
-    base_shipper_fare = get_base_shipper_fare(temp_type, selected_truck, input_distance)
-    default_margin = 15.0 if temp_type == "냉장 / 동" else 20.0
-    
-    # 기본 마진율(상온 20%, 냉동 15%)을 제외한 최초 차주 기본 지급가 산출
-    base_driver_fare = base_shipper_fare * (1 - (default_margin / 100.0))
-    st.info(f"🎯 화주 기준 단가: {base_shipper_fare:,.0f} 원  |  최초 차주 기본 지급가({default_margin:.0f}% 차감): {base_driver_fare:,.0f} 원")
+    # 단가표 금액이 곧 차주 기본 지급가(원가)
+    base_driver_fare = get_base_driver_fare(temp_type, selected_truck, input_distance)
+    st.info(f"🎯 차주 기본 지급가(원가) 자동 추출 완료: {base_driver_fare:,.0f} 원")
 
     st.markdown("**3. 하차 지역 선택 (귀로 공차 보정 자동 매칭)**")
     end_region_detail = st.selectbox("하차 지역 선택", list(destination_margin_rates.keys()), index=1, label_visibility="collapsed")
@@ -135,11 +131,12 @@ with col1:
 
     st.markdown("**7. 주선 마진 정책 설정 (조정 시 화주 청구액 변동)**")
     m_method = st.radio("마진 산정 방식", ["정률 마진 (%)", "정액 마진 (원)"], horizontal=True, label_visibility="collapsed")
+    default_margin = 15.0 if temp_type == "냉장 / 동" else 20.0
     
     if m_method == "정률 마진 (%)":
-        margin_rate = st.number_input("목표 마진 요율 (%)", min_value=0.0, max_value=50.0, value=default_margin, step=0.5)
+        margin_rate = st.number_input("목표 마진 요율 (%)", min_value=0.0, max_value=100.0, value=default_margin, step=0.5)
     else:
-        margin_flat = st.number_input("고정 마진 금액 (원)", min_value=0, value=int(base_shipper_fare - base_driver_fare), step=5000)
+        margin_flat = st.number_input("고정 마진 금액 (원)", min_value=0, value=10000, step=5000)
 
 with col2:
     st.markdown("<h3 style='color: #1E3A8A; border-bottom: 2px solid #1E3A8A; padding-bottom: 5px; margin-bottom: 15px;'>💰 최종 운임 산출 결과</h3>", unsafe_allow_html=True)
@@ -151,19 +148,16 @@ with col2:
     # 2. 마진 변경 시에도 고정되는 순수 차주 운임 확정
     pure_driver_fee = base_driver_fare + driver_premium + driver_return
     
-    # 3. 변경된 마진 정책에 따라 화주 청구 순수 운임 역산출
+    # 3. 엑셀 단가표 방식: 차주 운임에 마진율(%)을 곱해 가산한 후 천원 단위 반올림
     if m_method == "정률 마진 (%)":
-        margin_pct = margin_rate / 100.0
-        if margin_pct < 1.0:
-            pure_shipper_fee = pure_driver_fee / (1 - margin_pct)
-        else:
-            pure_shipper_fee = pure_driver_fee
+        raw_shipper_fee = pure_driver_fee * (1 + (margin_rate / 100.0))
+        pure_shipper_fee = int(round(raw_shipper_fee / 1000) * 1000)
         company_margin = pure_shipper_fee - pure_driver_fee
         final_margin_percent = margin_rate
     else:
         company_margin = margin_flat
         pure_shipper_fee = pure_driver_fee + company_margin
-        final_margin_percent = (company_margin / pure_shipper_fee * 100) if pure_shipper_fee > 0 else 0
+        final_margin_percent = (company_margin / pure_driver_fee * 100) if pure_driver_fee > 0 else 0
 
     # 4. 현장 실비는 마진 대상에서 제외 후 양측에 1:1 동일 합산
     final_driver_fee = pure_driver_fee + actual_expenses
@@ -176,12 +170,11 @@ with col2:
     with st.container(border=True):
         st.metric(label="🚛 차주 배차 지급 금액 (최종 지급가)", value=f"{int(round(final_driver_fee)):,.0f} 원")
         
-    st.success(f"📈 주선 수익 마진 : {int(round(company_margin)):,.0f} 원 ({final_margin_percent:.1f}%)")
+    st.success(f"📈 주선 수익 마진 : {int(round(company_margin)):,.0f} 원 (가산율 {final_margin_percent:.1f}%)")
     
     st.write("---")
     st.markdown("<h5 style='color: #1E3A8A; font-weight: bold;'>📋 상세 운임 산정 항목 리포트</h5>", unsafe_allow_html=True)
-    st.write(f"• **단가표 화주 기준 운임 ({temp_type}):** {base_shipper_fare:,.0f} 원")
-    st.write(f"• **최초 차주 기본 지급가 ({100 - default_margin:.0f}% 기준):** {int(round(base_driver_fare)):,.0f} 원")
+    st.write(f"• **차종별 기본 운임 ({temp_type}):** {base_driver_fare:,.0f} 원")
     st.write(f"• **공차 보정 추가액 ({return_rate*100:.0f}%):** {int(round(driver_return)):,.0f} 원")
     st.write(f"• **기타 옵션 할증액 ({total_premium_rate*100:.0f}%):** {int(round(driver_premium)):,.0f} 원")
     if multi_stop > 0:
@@ -189,6 +182,6 @@ with col2:
     st.write(f"• **실비 청구금액 합계 (마진 제외):** {actual_expenses:,.0f} 원")
     
     if m_method == "정률 마진 (%)":
-        st.caption(f"※ 정률 마진 적용: 차주 지급가({int(round(pure_driver_fee)):,}원) 고정 상태에서 목표 마진율 **{margin_rate}%** 가 적용되었습니다.")
+        st.caption(f"※ 엑셀 단가표 가산 방식: 차주 지급가({int(round(pure_driver_fee)):,}원)에 마진 **{margin_rate}%** 가산 후 천원 단위 반올림 적용")
     else:
-        st.caption(f"※ 정액 마진 적용: 차주 지급가({int(round(pure_driver_fee)):,}원) 고정 상태에서 고정 마진 **{margin_flat:,.0f} 원** 이 가산되었습니다.")
+        st.caption(f"※ 정액 마진 적용: 차주 지급가({int(round(pure_driver_fee)):,}원)에 고정 마진 **{margin_flat:,.0f} 원** 가산")
