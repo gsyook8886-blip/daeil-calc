@@ -17,6 +17,13 @@ destination_margin_rates = {
     "강원 태백·정선·평창·인제·양구·화천·고성": 0.10, "전남 완도·진도·신안": 0.10, "경북 봉화·영양·청송·울진": 0.10
 }
 
+# 톤수별 표준 연비 (km/L) - 유가 연동 차액 산출용
+truck_fuel_efficiency = {
+    "1톤": 9.0, "1.4톤": 8.5, "2.5톤": 6.5, "3.5톤": 5.8, "3.5톤 광폭": 5.5,
+    "5톤": 4.8, "5톤 플러스": 4.6, "5톤 장축": 4.5, "8톤": 3.8,
+    "11톤": 3.3, "11톤 장축": 3.2, "14톤": 3.1, "18톤": 2.9, "25톤": 2.7
+}
+
 # 2. 상온/냉장·동 단가표(10~500km) 산출 엔진
 def get_base_driver_fare(temp_type, truck_size, km):
     snapped_km = max(10, int(round(km / 5.0) * 5))
@@ -97,7 +104,26 @@ with col1:
     st.markdown("**2. 운송 거리 설정 (km)**")
     input_distance = st.number_input("운송 거리", min_value=10, max_value=500, value=15, step=5, label_visibility="collapsed")
     base_driver_fare = get_base_driver_fare(temp_type, selected_truck, input_distance)
-    st.info(f"🎯 차주 기본 지급가(원가) 자동 추출 완료: {base_driver_fare:,.0f} 원")
+
+    st.markdown("**2-1. 유가 연동 할증 설정 (경유 원/L)**")
+    c_fuel1, c_fuel2 = st.columns(2)
+    with c_fuel1:
+        base_fuel = st.number_input("단가표 기준 유가 (원/L)", min_value=500, max_value=5000, value=1600, step=10)
+    with c_fuel2:
+        curr_fuel = st.number_input("현재 적용 유가 (원/L)", min_value=500, max_value=5000, value=1600, step=10)
+    
+    # 냉장/동은 냉동기 가동 연료 소모 반영(연비 15% 차감)
+    eff = truck_fuel_efficiency.get(selected_truck, 5.0)
+    if temp_type == "냉장 / 동":
+        eff = eff * 0.85
+    fuel_diff_cost = int(round(((curr_fuel - base_fuel) / eff * input_distance) / 100.0) * 100)
+    
+    if fuel_diff_cost > 0:
+        st.warning(f"⛽ 유가 상승 반영: +{fuel_diff_cost:,.0f} 원 가산 (기준 연비 {eff:.1f}km/L 적용)")
+    elif fuel_diff_cost < 0:
+        st.info(f"⛽ 유가 하락 반영: {fuel_diff_cost:,.0f} 원 차감 (기준 연비 {eff:.1f}km/L 적용)")
+    else:
+        st.info(f"🎯 차주 기본 지급가(원가) 추출 완료: {base_driver_fare:,.0f} 원 (유가 변동 없음)")
 
     st.markdown("**3. 하차 지역 선택 (귀로 공차 보정 자동 매칭)**")
     end_region_detail = st.selectbox("하차 지역 선택", list(destination_margin_rates.keys()), index=1, label_visibility="collapsed")
@@ -144,9 +170,11 @@ with col1:
 with col2:
     st.subheader("💰 최종 운임 산출 결과")
     
-    driver_premium = base_driver_fare * total_premium_rate
-    driver_return = base_driver_fare * return_rate
-    pure_driver_fee = base_driver_fare + driver_premium + driver_return
+    # 유가 연동 반영 후 기본 운임
+    adjusted_base_fare = max(0, base_driver_fare + fuel_diff_cost)
+    driver_premium = adjusted_base_fare * total_premium_rate
+    driver_return = adjusted_base_fare * return_rate
+    pure_driver_fee = adjusted_base_fare + driver_premium + driver_return
     
     if m_method == "정률 마진 (%)":
         raw_shipper_fee = pure_driver_fee * (1 + (margin_rate / 100.0))
@@ -168,13 +196,5 @@ with col2:
     st.divider()
     st.subheader("📋 상세 운임 산정 항목 리포트")
     st.write(f"• **차종별 기본 운임 ({temp_type}):** {base_driver_fare:,.0f} 원")
-    st.write(f"• **공차 보정 추가액 ({return_rate*100:.0f}%):** {int(round(driver_return)):,.0f} 원")
-    st.write(f"• **기타 옵션 할증액 ({total_premium_rate*100:.0f}%):** {int(round(driver_premium)):,.0f} 원")
-    if multi_stop > 0:
-        st.write(f"• **경유지 추가 비용 (실비 청구):** {multi_stop:,.0f} 원")
-    st.write(f"• **실비 청구금액 합계 (마진 제외):** {actual_expenses:,.0f} 원")
-    
-    if m_method == "정률 마진 (%)":
-        st.caption(f"※ 엑셀 단가표 가산 방식: 차주 지급가({int(round(pure_driver_fee)):,}원)에 마진 {margin_rate}% 가산 후 천원 단위 반올림 적용")
-    else:
-        st.caption(f"※ 정액 마진 적용: 차주 지급가({int(round(pure_driver_fee)):,}원)에 고정 마진 {margin_flat:,.0f} 원 가산")
+    if fuel_diff_cost != 0:
+        st.write(f"• **유가 연동 차액 ({base_fuel:,}원 → {curr_fuel:,}원):** {fuel_diff_cost:+,.0f} 원")
