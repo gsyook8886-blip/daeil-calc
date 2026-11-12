@@ -30,7 +30,7 @@ if not st.session_state["authenticated"]:
     st.stop()
 
 # ------------------------------------------------------------------
-# 🗺️ 2단계: 하차지 공차 보정률 데이터베이스 (수원, 대전, 대구, 부천, 화성 완비)
+# 🗺️ 2단계: 하차지 공차 보정률 데이터베이스
 # ------------------------------------------------------------------
 destination_margin_rates = {
     "서울": 0.00, "인천": 0.00, "부천": 0.00,
@@ -121,7 +121,6 @@ with col1:
     total_premium_rate = (p_premium + u_premium + n_premium + weather_premium_rate) / 100
 
     st.markdown("**6. 운송 실비 및 현장 기타 비용 (원)**")
-    # 통행료 필드(toll) 삭제 후 깔끔하게 4열(c8 ~ c11) 레이아웃으로 변경
     c8, c9, c10, c11 = st.columns(4)
     with c8: load = st.number_input("상/하차비", min_value=0, value=0, step=1000)
     with c9: wait = st.number_input("대기료", min_value=0, value=0, step=1000)
@@ -131,8 +130,11 @@ with col1:
 
     st.markdown("**7. 주선 마진 정책 설정**")
     m_method = st.radio("마진 산정 방식", ["정률 마진 (%)", "정액 마진 (원)"], horizontal=True, label_visibility="collapsed")
+    
+    # 어떤 방식을 선택하든 오류가 나지 않도록 기본 마진 변수 사전 정의
+    default_margin = 15.0 if temp_type == "냉장 / 동" else 20.0
+    
     if m_method == "정률 마진 (%)":
-        default_margin = 15.0 if temp_type == "냉장 / 동" else 20.0
         margin_rate = st.number_input("목표 마진 요율 (%)", min_value=0.0, max_value=50.0, value=default_margin, step=0.5)
     else:
         margin_flat = st.number_input("고정 마진 금액 (원)", min_value=0, value=30000, step=5000)
@@ -177,4 +179,9 @@ with col2:
     if multi_stop > 0:
         st.write(f"• **경유지 추가 비용 (실비 청구):** {multi_stop:,.0f} 원")
     st.write(f"• **실비 청구금액 합계 (마진 제외):** {actual_expenses:,.0f} 원")
-    st.caption(f"※ 운송 형태 연동 완료: 현재 **{temp_type}** 조건에 따라 기본 마진율 **{default_margin}%** 가 자동으로 세팅되었습니다.")
+    
+    # 마진 산정 방식에 따라 안내 문구 분기 처리 (에러 완벽 차단)
+    if m_method == "정률 마진 (%)":
+        st.caption(f"※ 정률 마진 적용: **{temp_type}** 기준 기본 마진율 **{default_margin}%** 가 세팅되었습니다.")
+    else:
+        st.caption(f"※ 정액 마진 적용: 기사 지급가에 고정 마진 **{margin_flat:,.0f} 원** 이 가산되었습니다.")
